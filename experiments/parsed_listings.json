@@ -1,0 +1,54 @@
+[
+  {
+    "id": "62F928E8-F582-4027-B3D9-8765A1A5605C",
+    "movie_title": "Frankenstein",
+    "movie_slug": "frank_26oct25",
+    "showing_datetime": "Sunday 26 October 2025 10:45",
+    "showing_time": "10:45",
+    "showing_date": "2025-10-26",
+    "format_keywords": "IMAX with Laser",
+    "detail_url_path": "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=ABCC0BB0-C879-4320-A7E6-DFAAA0C2B7B8&BOparam::WScontent::loadArticle::context_id=62F928E8-F582-4027-B3D9-8765A1A5605C",
+    "venue_name": "",
+    "min_price": "",
+    "max_price": ""
+  },
+  {
+    "id": "DDE7C815-67AF-4727-A1DC-81D19A8AC164",
+    "movie_title": "Tron: Ares (3D)",
+    "movie_slug": "tron3D_ma_26Oct25",
+    "showing_datetime": "Sunday 26 October 2025 14:10",
+    "showing_time": "14:10",
+    "showing_date": "2025-10-26",
+    "format_keywords": "IMAX with Laser,3D",
+    "detail_url_path": "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=3C590EEB-E35E-48F5-B783-DBF65D66F458&BOparam::WScontent::loadArticle::context_id=DDE7C815-67AF-4727-A1DC-81D19A8AC164",
+    "venue_name": "",
+    "min_price": "",
+    "max_price": ""
+  },
+  {
+    "id": "844D4AB8-E7CB-42C6-A2FD-66049BE56000",
+    "movie_title": "One Battle After Another",
+    "movie_slug": "oneba_e1_26Oct25",
+    "showing_datetime": "Sunday 26 October 2025 17:00",
+    "showing_time": "17:00",
+    "showing_date": "2025-10-26",
+    "format_keywords": "imax,70mm",
+    "detail_url_path": "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=BD85DF84-24F6-4EBC-BFB5-DDF9375E26DF&BOparam::WScontent::loadArticle::context_id=844D4AB8-E7CB-42C6-A2FD-66049BE56000",
+    "venue_name": "",
+    "min_price": "",
+    "max_price": ""
+  },
+  {
+    "id": "8BE84D55-4302-41F9-8E64-562EE89AE8E4",
+    "movie_title": "Chainsaw Man - The Movie: Reze Arc",
+    "movie_slug": "chain_e2_26oct25",
+    "showing_datetime": "Sunday 26 October 2025 20:30",
+    "showing_time": "20:30",
+    "showing_date": "2025-10-26",
+    "format_keywords": "English subtitles,IMAX with Laser,subtitles,imax",
+    "detail_url_path": "default.asp?doWork::WScontent::loadArticle=Load&BOparam::WScontent::loadArticle::article_id=F62C7EE3-C9D7-4E3C-92DE-0DEE61D033AC&BOparam::WScontent::loadArticle::context_id=8BE84D55-4302-41F9-8E64-562EE89AE8E4",
+    "venue_name": "",
+    "min_price": "",
+    "max_price": ""
+  }
+]

@@ -1,0 +1,13 @@
+[project]
+name = "bfiimax"
+version = "0.1.0"
+description = "BFI IMAX listing scraper and presentation system"
+requires-python = ">=3.13"
+dependencies = [
+    "cloudscraper>=1.2.71",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+]
+
+[tool.uv]
+package = false

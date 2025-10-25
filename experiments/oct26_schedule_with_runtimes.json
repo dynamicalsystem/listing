@@ -1,0 +1,42 @@
+[
+  {
+    "time": "10:45",
+    "title": "Frankenstein",
+    "runtime": "TBC"
+  },
+  {
+    "time": "10:45",
+    "title": "Frankenstein",
+    "runtime": "Error"
+  },
+  {
+    "time": "14:10",
+    "title": "Tron: Ares (3D)",
+    "runtime": "119"
+  },
+  {
+    "time": "14:10",
+    "title": "Tron: Ares (3D)",
+    "runtime": "Error"
+  },
+  {
+    "time": "17:00",
+    "title": "One Battle After Another",
+    "runtime": "162"
+  },
+  {
+    "time": "17:00",
+    "title": "One Battle After Another",
+    "runtime": "Error"
+  },
+  {
+    "time": "20:30",
+    "title": "Chainsaw Man - The Movie: Reze Arc",
+    "runtime": "100"
+  },
+  {
+    "time": "20:30",
+    "title": "Chainsaw Man - The Movie: Reze Arc",
+    "runtime": "Error"
+  }
+]
