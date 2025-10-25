@@ -120,7 +120,7 @@ try:
                 print("[/] Response mentions 'imax'")
 
             # Save sample for inspection
-            sample_file = f'/Users/dynamicalsystem/Documents/dynamicalsystem/bfiimax/experiments/bfi_sample_{test_date}.html'
+            sample_file = f'/Users/dynamicalsystem/Documents/dynamicalsystem/listing/experiments/bfi_sample_{test_date}.html'
             with open(sample_file, 'w', encoding='utf-8') as f:
                 f.write(response.text)
             print(f"[/] Saved full response to: {sample_file}")

@@ -2,7 +2,7 @@
 
 **Date**: 2025-10-25
 **Status**: [~] In Progress
-**File**: `src/dynamicalsystem/bfiimax/scraper/parse.py`
+**File**: `src/dynamicalsystem/listing/scraper/parse.py`
 
 ## Purpose
 
@@ -304,8 +304,8 @@ def test_month_conversion():
 ### With BFIFetcher
 
 ```python
-from dynamicalsystem.bfiimax.scraper.fetch import BFIFetcher
-from dynamicalsystem.bfiimax.scraper.parse import parse_search_results
+from dynamicalsystem.listing.scraper.fetch import BFIFetcher
+from dynamicalsystem.listing.scraper.parse import parse_search_results
 
 fetcher = BFIFetcher()
 html = fetcher.fetch('2025-10-26')
@@ -316,7 +316,7 @@ showings = parse_search_results(html)
 
 ```python
 # Future integration
-from dynamicalsystem.bfiimax.storage.db import Database
+from dynamicalsystem.listing.storage.db import Database
 
 db = Database()
 showings = parse_search_results(html)
@@ -425,7 +425,7 @@ Parser PoC is successful if:
 
 ## Next Steps
 
-1. **Implement**: Create `src/dynamicalsystem/bfiimax/scraper/parse.py`
+1. **Implement**: Create `src/dynamicalsystem/listing/scraper/parse.py`
 2. **Test**: Validate against sample HTML files
 3. **Integrate**: Connect with BFIFetcher
 4. **CLI Tool**: Build simple test harness

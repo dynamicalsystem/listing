@@ -307,7 +307,7 @@ is_sold_out = (availability_status == 'S') or (availability_num == '0')
 ### Immediate (ORIENT Phase)
 
 1. **Design Parser Module**
-   - `src/dynamicalsystem/bfiimax/scraper/parse.py`
+   - `src/dynamicalsystem/listing/scraper/parse.py`
    - Function: `parse_search_results(html: str) -> List[Dict]`
    - Integrate with `BFIFetcher`
 

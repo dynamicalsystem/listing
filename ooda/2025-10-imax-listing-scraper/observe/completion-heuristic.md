@@ -275,7 +275,7 @@ if runtime is None:
 
 ### Phase 1: Basic Runtime Extraction
 
-**File**: `src/dynamicalsystem/bfiimax/scraper/runtime.py`
+**File**: `src/dynamicalsystem/listing/scraper/runtime.py`
 
 ```python
 def get_runtime(movie_title: str, detail_html: str = None) -> Optional[int]:
@@ -311,7 +311,7 @@ def get_runtime(movie_title: str, detail_html: str = None) -> Optional[int]:
 
 ### Phase 2: Schedule Modeling
 
-**File**: `src/dynamicalsystem/bfiimax/scraper/schedule.py`
+**File**: `src/dynamicalsystem/listing/scraper/schedule.py`
 
 ```python
 def model_day_schedule(date: str, showings: List[Dict]) -> Dict:
@@ -330,7 +330,7 @@ def model_day_schedule(date: str, showings: List[Dict]) -> Dict:
 
 ### Phase 3: External Runtime Sources
 
-**File**: `src/dynamicalsystem/bfiimax/scraper/external_runtimes.py`
+**File**: `src/dynamicalsystem/listing/scraper/external_runtimes.py`
 
 ```python
 def fetch_from_wikipedia(movie_title: str) -> Optional[int]:

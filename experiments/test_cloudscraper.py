@@ -13,7 +13,7 @@ from pathlib import Path
 # Add src to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from dynamicalsystem.bfiimax.scraper.fetch import BFIFetcher
+from dynamicalsystem.listing.scraper.fetch import BFIFetcher
 
 
 def test_cloudscraper():

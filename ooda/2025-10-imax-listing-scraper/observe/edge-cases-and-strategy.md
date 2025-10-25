@@ -355,7 +355,7 @@ CREATE INDEX idx_last_scraped ON scrape_schedule(last_scraped);
 
 ### Phase 1: Parser Module
 
-**File**: `src/dynamicalsystem/bfiimax/scraper/parse.py`
+**File**: `src/dynamicalsystem/listing/scraper/parse.py`
 
 **Functions**:
 - `parse_search_results(html: str) -> List[Dict]`
@@ -366,7 +366,7 @@ CREATE INDEX idx_last_scraped ON scrape_schedule(last_scraped);
 
 ### Phase 2: Scrape Schedule Manager
 
-**File**: `src/dynamicalsystem/bfiimax/scraper/schedule.py`
+**File**: `src/dynamicalsystem/listing/scraper/schedule.py`
 
 **Functions**:
 - `update_horizon() -> Set[str]`
@@ -378,7 +378,7 @@ CREATE INDEX idx_last_scraped ON scrape_schedule(last_scraped);
 
 ### Phase 3: Daily Maintenance Script
 
-**File**: `src/dynamicalsystem/bfiimax/maintenance/daily.py`
+**File**: `src/dynamicalsystem/listing/maintenance/daily.py`
 
 **Steps**:
 1. Horizon scan

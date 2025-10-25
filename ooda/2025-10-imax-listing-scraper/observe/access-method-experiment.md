@@ -39,11 +39,11 @@ dependencies = [
 
 ### Project Structure Created
 ```
-bfiimax/
+listing/
 ├── pyproject.toml
 ├── src/
 │   └── dynamicalsystem/
-│       └── bfiimax/
+│       └── listing/
 │           └── scraper/
 │               └── fetch.py          # BFIFetcher class
 └── experiments/
@@ -80,7 +80,7 @@ curl -s -A "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ..." \
 ### Test 3: cloudscraper Library
 **Code**:
 ```python
-from dynamicalsystem.bfiimax.scraper.fetch import BFIFetcher
+from dynamicalsystem.listing.scraper.fetch import BFIFetcher
 
 fetcher = BFIFetcher()
 html = fetcher.fetch('2025-10-26')
@@ -131,7 +131,7 @@ scraper = cloudscraper.create_scraper(
 ## Artifacts Created
 
 ### Code
-1. **src/dynamicalsystem/bfiimax/scraper/fetch.py**
+1. **src/dynamicalsystem/listing/scraper/fetch.py**
    - `BFIFetcher` class
    - `build_url(date_from, date_to)` - constructs query URL
    - `fetch(date_from, date_to)` - returns HTML string
@@ -274,7 +274,7 @@ BOparam::WScontent::search::article_search_id=49C49C83-6BA0-420C-A784-9B485E36E2
 ## References
 
 **Sample HTML**: experiments/bfi_cloudscraper_2025-10-26.html
-**Fetcher Code**: src/dynamicalsystem/bfiimax/scraper/fetch.py
+**Fetcher Code**: src/dynamicalsystem/listing/scraper/fetch.py
 **Test Script**: experiments/test_cloudscraper.py
 
 **Related Documents**:
