@@ -319,75 +319,33 @@ Since we run daily, we only need to filter out complete dates.
 ```python
 def get_dates_to_scrape(self) -> List[str]:
     """
-    Get prioritized list of dates to scrape today
+    Get list of dates to scrape today
 
-    Priority tiers:
-    1. New dates (status='unknown')
-    2. Near-term partial dates (<= 14 days away)
-    3. Unstable dates (changed recently)
-    4. Far-future partial dates (check weekly)
-    5. Empty dates (re-check weekly to catch late additions)
+    Simple logic:
+    1. Get all dates with showings (from horizon scan)
+    2. Exclude dates marked 'complete'
+    3. Scrape everything else
     """
-    today = datetime.now(ZoneInfo("UTC")).date()
-    dates_to_scrape = []
+    # Get all dates with showings from most recent horizon scan
+    dates_with_showings = self.db.get_all_scheduled_dates()
 
-    # Priority 1: Unknown dates (newly discovered)
-    unknown = self.db.get_dates_by_status(['unknown'])
-    dates_to_scrape.extend(sorted(unknown))
-    logger.info(f"Priority 1 (unknown): {len(unknown)} dates")
+    # Get dates marked complete
+    complete_dates = self.db.get_dates_by_status(['complete'])
 
-    # Priority 2: Near-term partial dates
-    near_term_end = (today + timedelta(days=14)).isoformat()
-    partial_near = self.db.get_partial_dates_in_range(
-        start=today.isoformat(),
-        end=near_term_end
-    )
-    dates_to_scrape.extend(sorted(partial_near))
-    logger.info(f"Priority 2 (near-term partial): {len(partial_near)} dates")
+    # Dates to scrape = dates with showings - complete dates
+    dates_to_scrape = sorted(dates_with_showings - complete_dates)
 
-    # Priority 3: Recently changed dates (check daily for 3 days)
-    recently_changed = self.db.get_recently_changed_dates(days=3)
-    for date in recently_changed:
-        if date not in dates_to_scrape:
-            dates_to_scrape.append(date)
-    logger.info(f"Priority 3 (recently changed): {len(recently_changed)} dates")
+    logger.info(f"Dates to scrape: {len(dates_to_scrape)}")
+    return dates_to_scrape
+```
 
-    # Priority 4: Far-future partial (check weekly)
-    far_future_partial = self.db.get_partial_dates_after(near_term_end)
-    for date in far_future_partial:
-        if self._should_check_weekly(date):
-            dates_to_scrape.append(date)
-    logger.info(f"Priority 4 (far-future partial): {len(far_future_partial)} dates")
+### Status Transitions
 
-    # Priority 5: Empty dates (re-check weekly for late additions)
-    empty_dates = self.db.get_dates_by_status(['empty'])
-    for date in empty_dates:
-        if self._should_check_weekly(date):
-            dates_to_scrape.append(date)
-    logger.info(f"Priority 5 (empty re-check): {len(empty_dates)} dates")
-
-    # Remove duplicates, keep order
-    seen = set()
-    unique_dates = []
-    for date in dates_to_scrape:
-        if date not in seen:
-            seen.add(date)
-            unique_dates.append(date)
-
-    logger.info(f"Total dates to scrape: {len(unique_dates)}")
-    return unique_dates
-
-def _should_check_weekly(self, date: str) -> bool:
-    """Check if date is due for weekly re-check"""
-    last_checked = self.db.get_last_checked(date)
-    if not last_checked:
-        return True
-
-    last_checked_dt = datetime.fromisoformat(last_checked)
-    now = datetime.now(ZoneInfo("UTC"))
-    days_since_check = (now - last_checked_dt).days
-
-    return days_since_check >= 7
+```
+unknown → (first scrape) → partial or complete or empty
+partial → (re-scrape) → complete (when CompletionChecker confirms)
+complete → (never changes - schedule is final)
+empty → (confirmed no showings)
 ```
 
 ### Database Queries
