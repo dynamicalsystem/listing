@@ -310,11 +310,11 @@ def _verify_and_mark_removed(self, date: str):
 
 ---
 
-## 2. Re-scrape Prioritization
+## 2. Re-scrape Logic (Simplified)
 
-### Priority Tiers
+### Simple Binary Filter
 
-Determine which dates need scraping based on status, age, and proximity.
+Since we run daily, we only need to filter out complete dates.
 
 ```python
 def get_dates_to_scrape(self) -> List[str]:
