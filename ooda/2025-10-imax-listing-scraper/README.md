@@ -133,7 +133,12 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
    - [x] schedule.py - ScheduleManager orchestrator
    - [x] 31 unit + integration tests passing
    - [x] Simplified re-scrape logic (binary filter vs 5-tier priority)
-4. [ ] ACT-04: Daily Maintenance (1 day)
+4. [x] ACT-04: Daily Maintenance (merged 2025-10-26, commit: 23a945e)
+   - [x] config.py - Environment variable configuration
+   - [x] daily.py - Production maintenance script
+   - [x] CLI interface with dry-run, verbose, db-path options
+   - [x] Three-tier exit codes (0/1/2) for monitoring
+   - [x] 20 unit tests passing
 5. [ ] ACT-05: Go Web Server (2-3 days)
 
 **Timeline**: ~2 weeks (estimated)

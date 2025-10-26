@@ -9,7 +9,7 @@
 
 - **Plan**: [../PLANNING.md](../PLANNING.md)
 - **Design**: [../../orient/daily-maintenance-workflow.md](../../orient/daily-maintenance-workflow.md)
-- **Merge Commit**: (pending)
+- **Merge Commit**: `23a945e`
 
 ## Timeline
 
@@ -19,7 +19,7 @@
 | Implementation | 2025-10-26 | config.py, daily.py, tests |
 | Testing | 2025-10-26 | 20 tests passing, dry-run verified |
 | Outcome verified | 2025-10-26 | End-to-end workflow functional |
-| Merged to main | 2025-10-26 | (pending) |
+| Merged to main | 2025-10-26 | 23a945e (merge commit) |
 
 ## Implementation Summary
 

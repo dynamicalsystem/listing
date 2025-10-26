@@ -17,7 +17,7 @@ Scrape BFI IMAX schedule, maintain daily listings database, and present data via
 - [x] OBSERVE Complete (6 audits complete, 2025-10-25)
 - [x] ORIENT Complete (6/6 designs complete, 2025-10-26)
 - [x] DECIDE Core decisions validated
-- [~] ACT In Progress (ACT-03 complete, ACT-04 next, 2025-10-26)
+- [~] ACT In Progress (ACT-04 complete, ACT-05 next, 2025-10-26)
 
 **Key Findings**:
 - [x] Data extraction: JavaScript searchResults array (regex + JSON parsing)
