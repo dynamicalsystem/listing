@@ -2,8 +2,45 @@
 
 **Date**: 2025-10-26
 **Status**: [x] Approved
-**File**: `src/dynamicalsystem/listing/scraper/schedule.py`
+**Files**: `schedule.py`, `changes.py`, `completion.py`
 **Purpose**: Orchestrate horizon scanning, re-scrape decisions, and change detection
+
+---
+
+## Design Decision: Module Split (2025-10-26)
+
+**Problem**: Initial design had single ScheduleManager class doing too much (horizon scanning, priority logic, scraping, change detection, completion detection, batch operations).
+
+**Decision**: Split into 3 focused modules:
+
+1. **`changes.py`** - ChangeDetector
+   - Compare snapshots (hash-based quick check)
+   - Detect field-level changes (added/removed/modified)
+   - Pure comparison logic, no external dependencies
+
+2. **`completion.py`** - CompletionChecker
+   - Runtime-based gap modeling
+   - Operating hours analysis
+   - Pure function of (showings + runtimes)
+
+3. **`schedule.py`** - ScheduleManager (orchestrator)
+   - Horizon scanning
+   - Priority logic (5-tier re-scrape)
+   - Single date scrape workflow
+   - Batch scraping
+   - Delegates to ChangeDetector and CompletionChecker
+
+**Rationale**:
+- Smaller, focused modules (easier to understand)
+- Each testable in isolation
+- Clear separation of concerns
+- ScheduleManager becomes simpler orchestration layer
+
+**Impact**:
+- 3 files instead of 1
+- ChangeDetector and CompletionChecker are reusable
+- Easier to test edge cases in isolation
+- Reduced complexity in each module
 
 ---
 
@@ -20,26 +57,89 @@ Manage the lifecycle of date scraping:
 
 ---
 
-## Module Interface
+## Module Interfaces
 
-### Core Class
+### 1. ChangeDetector (changes.py)
+
+```python
+class ChangeDetector:
+    """
+    Detects changes between schedule snapshots
+
+    Pure comparison logic - no external dependencies
+    """
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def detect_changes(
+        self,
+        date: str,
+        current_showings: List[Dict],
+        previous_hash: Optional[str]
+    ) -> List[Change]:
+        """
+        Compare current showings to previous snapshot
+
+        Returns: List of Change objects (added/removed/modified)
+        """
+```
+
+### 2. CompletionChecker (completion.py)
+
+```python
+class CompletionChecker:
+    """
+    Determines if a date's schedule is complete
+
+    Pure function of showings + runtimes
+    """
+
+    def __init__(self, runtime_fetcher: RuntimeFetcher, config: Config):
+        self.runtime_fetcher = runtime_fetcher
+        self.config = config
+
+    def is_complete(
+        self,
+        date: str,
+        showings: List[Dict]
+    ) -> bool:
+        """
+        Check if schedule is complete using runtime-based modeling
+
+        Algorithm:
+        1. Get runtimes for all films
+        2. Model time slots (runtime + ads + changeover)
+        3. Check for gaps that could fit another showing
+        4. Consider operating hours
+
+        Returns: True if complete, False if partial
+        """
+```
+
+### 3. ScheduleManager (schedule.py)
 
 ```python
 class ScheduleManager:
     """
-    Manages date scraping lifecycle and change detection
+    Orchestrates scraping lifecycle
 
-    Responsibilities:
-    - Horizon scanning (discover dates with showings)
-    - Re-scrape prioritization (which dates to check today)
-    - Change detection (compare snapshots)
-    - Completion detection (runtime-based modeling)
+    Delegates to ChangeDetector and CompletionChecker
     """
 
-    def __init__(self, db, fetcher, runtime_fetcher):
+    def __init__(
+        self,
+        db: Database,
+        fetcher: BFIFetcher,
+        runtime_fetcher: RuntimeFetcher,
+        change_detector: ChangeDetector,
+        completion_checker: CompletionChecker
+    ):
         self.db = db
-        self.fetcher = fetcher  # BFIFetcher
+        self.fetcher = fetcher
         self.runtime_fetcher = runtime_fetcher
+        self.change_detector = change_detector
+        self.completion_checker = completion_checker
 
     def update_horizon(self) -> HorizonScanResult:
         """
