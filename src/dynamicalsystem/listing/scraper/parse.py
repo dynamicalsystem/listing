@@ -31,7 +31,6 @@ FIELD_INDICES = {
     'availability_count': 16,
     'keywords': 17,
     'detail_url_path': 18,
-    'performance_id': 42,
     'rating': 43,
 }
 
@@ -151,7 +150,7 @@ def _parse_showing_record(record: List) -> Dict:
             logger.warning(f"Invalid date components: year={year}, month={month}, day={day}")
 
     return {
-        'id': safe_get(FIELD_INDICES['id']),
+        'bfi_showing_id': safe_get(FIELD_INDICES['id']),
         'movie_title': safe_get(FIELD_INDICES['movie_title']),
         'movie_slug': safe_get(FIELD_INDICES['movie_slug']),
         'showing_datetime': safe_get(FIELD_INDICES['full_datetime']),

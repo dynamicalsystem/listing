@@ -73,7 +73,7 @@ class TestParseSearchResults:
         results = parse_search_results(sample_html_with_results)
 
         required_fields = [
-            'id', 'movie_title', 'movie_slug', 'showing_datetime',
+            'bfi_showing_id', 'movie_title', 'movie_slug', 'showing_datetime',
             'showing_date', 'showing_time', 'format_keywords',
             'detail_url_path', 'availability_status', 'availability_count', 'rating'
         ]

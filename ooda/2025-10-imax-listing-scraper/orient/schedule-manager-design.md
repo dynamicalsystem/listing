@@ -2,8 +2,106 @@
 
 **Date**: 2025-10-26
 **Status**: [x] Approved
-**File**: `src/dynamicalsystem/listing/scraper/schedule.py`
+**Files**: `schedule.py`, `changes.py`, `completion.py`
 **Purpose**: Orchestrate horizon scanning, re-scrape decisions, and change detection
+
+---
+
+## Design Decisions
+
+### Decision 1: Module Split (2025-10-26)
+
+**Problem**: Initial design had single ScheduleManager class doing too much (horizon scanning, priority logic, scraping, change detection, completion detection, batch operations).
+
+**Decision**: Split into 3 focused modules:
+
+1. **`changes.py`** - ChangeDetector
+   - Compare snapshots (hash-based quick check)
+   - Detect field-level changes (added/removed/modified)
+   - Pure comparison logic, no external dependencies
+
+2. **`completion.py`** - CompletionChecker
+   - Runtime-based gap modeling
+   - Operating hours analysis
+   - Pure function of (showings + runtimes)
+
+3. **`schedule.py`** - ScheduleManager (orchestrator)
+   - Horizon scanning
+   - Simple scraping logic (single date)
+   - Delegates to ChangeDetector and CompletionChecker
+
+**Rationale**:
+- Smaller, focused modules (easier to understand)
+- Each testable in isolation
+- Clear separation of concerns
+- ScheduleManager becomes simpler orchestration layer
+
+**Impact**:
+- 3 files instead of 1
+- ChangeDetector and CompletionChecker are reusable
+- Easier to test edge cases in isolation
+- Reduced complexity in each module
+
+### Decision 2: Simplify Re-scrape Logic (2025-10-26)
+
+**Problem**: Original design had 5-tier priority system (unknown, near-term partial, recently changed, far-future partial, empty re-checks). Too complex.
+
+**Analysis**:
+- We run daily anyway, so near-term vs far-future distinction is irrelevant
+- "Recently changed" is premature - we don't have data showing BFI schedules are unstable
+- Empty re-checks redundant - horizon scan catches dates that get showings added
+- Priority tiers don't add value when checking daily
+
+**Decision**: Simple binary logic:
+1. **Horizon scan** → get all dates with showings (from `performanceDays`)
+2. **Filter**: Skip dates marked "complete"
+3. **Scrape everything else**
+4. **Mark complete** when CompletionChecker confirms
+
+**Rationale**:
+- We check daily anyway, so no need for priority tiers
+- Horizon scan automatically discovers new dates
+- "Complete" status is the only meaningful filter
+- Much simpler to implement and understand
+
+**Impact**:
+- Removed 5-tier priority system
+- No weekly re-check logic needed
+- No near-term vs far-future distinction
+- Database statuses simplified: unknown, partial, complete, empty
+- get_dates_to_scrape() becomes trivial: horizon - complete_dates
+
+### Decision 3: Remove Batch Scraping (2025-10-26)
+
+**Problem**: Original design had `scrape_all_pending()` wrapper that hides the scraping loop inside ScheduleManager.
+
+**Analysis**:
+- `scrape_all_pending()` just wraps: horizon scan → get dates → loop scrape_date()
+- Doesn't add value - just convenience
+- Hides what's actually happening
+- Daily maintenance script should be explicit about its workflow
+
+**Decision**: Remove `scrape_all_pending()`. Daily script does the loop explicitly.
+
+**Daily script becomes:**
+```python
+manager.update_horizon()
+for date in manager.get_dates_to_scrape():
+    result = manager.scrape_date(date)
+    time.sleep(1)  # rate limiting
+```
+
+**Rationale**:
+- More explicit (can see the loop)
+- Daily script controls rate limiting and error handling
+- ScheduleManager provides primitives, not workflows
+- Simpler ScheduleManager interface
+
+**Impact**:
+- Removed `scrape_all_pending()` method
+- Removed `ScrapeRunSummary` data class (not needed)
+- Daily maintenance script handles its own loop and stats
+- ScheduleManager is simpler (3 methods instead of 4)
 
 ---
 
@@ -20,26 +118,90 @@ Manage the lifecycle of date scraping:
 
 ---
 
-## Module Interface
+## Module Interfaces
 
-### Core Class
+### 1. ChangeDetector (changes.py)
+
+```python
+class ChangeDetector:
+    """
+    Detects changes between schedule snapshots
+
+    Pure comparison logic - no external dependencies
+    """
+
+    def __init__(self, db: Database):
+        self.db = db
+
+    def detect_changes(
+        self,
+        date: str,
+        current_showings: List[Dict]
+    ) -> List[Change]:
+        """
+        Compare current showings to previous snapshot
+
+        Fetches previous snapshot from database internally.
+
+        Returns: List of Change objects (added/removed/modified)
+        """
+```
+
+### 2. CompletionChecker (completion.py)
+
+```python
+class CompletionChecker:
+    """
+    Determines if a date's schedule is complete
+
+    Pure function of showings + runtimes
+    """
+
+    def __init__(self, runtime_fetcher: RuntimeFetcher, config: Config):
+        self.runtime_fetcher = runtime_fetcher
+        self.config = config
+
+    def is_complete(
+        self,
+        date: str,
+        showings: List[Dict]
+    ) -> bool:
+        """
+        Check if schedule is complete using runtime-based modeling
+
+        Algorithm:
+        1. Get runtimes for all films
+        2. Model time slots (runtime + ads + changeover)
+        3. Check for gaps that could fit another showing
+        4. Consider operating hours
+
+        Returns: True if complete, False if partial
+        """
+```
+
+### 3. ScheduleManager (schedule.py)
 
 ```python
 class ScheduleManager:
     """
-    Manages date scraping lifecycle and change detection
+    Orchestrates scraping lifecycle
 
-    Responsibilities:
-    - Horizon scanning (discover dates with showings)
-    - Re-scrape prioritization (which dates to check today)
-    - Change detection (compare snapshots)
-    - Completion detection (runtime-based modeling)
+    Delegates to ChangeDetector and CompletionChecker
     """
 
-    def __init__(self, db, fetcher, runtime_fetcher):
+    def __init__(
+        self,
+        db: Database,
+        fetcher: BFIFetcher,
+        runtime_fetcher: RuntimeFetcher,
+        change_detector: ChangeDetector,
+        completion_checker: CompletionChecker
+    ):
         self.db = db
-        self.fetcher = fetcher  # BFIFetcher
+        self.fetcher = fetcher
         self.runtime_fetcher = runtime_fetcher
+        self.change_detector = change_detector
+        self.completion_checker = completion_checker
 
     def update_horizon(self) -> HorizonScanResult:
         """
@@ -67,17 +229,6 @@ class ScheduleManager:
         - changes_detected: List[Change]
         - is_complete: bool
         - status: 'empty' | 'partial' | 'complete'
-        """
-
-    def scrape_all_pending(self) -> ScrapeRunSummary:
-        """
-        Scrape all dates that need checking today
-
-        Returns: ScrapeRunSummary with:
-        - dates_scraped: int
-        - changes_detected: int
-        - new_dates_found: int
-        - errors: List[str]
         """
 ```
 
@@ -180,84 +331,42 @@ def _verify_and_mark_removed(self, date: str):
 
 ---
 
-## 2. Re-scrape Prioritization
+## 2. Re-scrape Logic (Simplified)
 
-### Priority Tiers
+### Simple Binary Filter
 
-Determine which dates need scraping based on status, age, and proximity.
+Since we run daily, we only need to filter out complete dates.
 
 ```python
 def get_dates_to_scrape(self) -> List[str]:
     """
-    Get prioritized list of dates to scrape today
+    Get list of dates to scrape today
 
-    Priority tiers:
-    1. New dates (status='unknown')
-    2. Near-term partial dates (<= 14 days away)
-    3. Unstable dates (changed recently)
-    4. Far-future partial dates (check weekly)
-    5. Empty dates (re-check weekly to catch late additions)
+    Simple logic:
+    1. Get all dates with showings (from horizon scan)
+    2. Exclude dates marked 'complete'
+    3. Scrape everything else
     """
-    today = datetime.now(ZoneInfo("UTC")).date()
-    dates_to_scrape = []
+    # Get all dates with showings from most recent horizon scan
+    dates_with_showings = self.db.get_all_scheduled_dates()
 
-    # Priority 1: Unknown dates (newly discovered)
-    unknown = self.db.get_dates_by_status(['unknown'])
-    dates_to_scrape.extend(sorted(unknown))
-    logger.info(f"Priority 1 (unknown): {len(unknown)} dates")
+    # Get dates marked complete
+    complete_dates = self.db.get_dates_by_status(['complete'])
 
-    # Priority 2: Near-term partial dates
-    near_term_end = (today + timedelta(days=14)).isoformat()
-    partial_near = self.db.get_partial_dates_in_range(
-        start=today.isoformat(),
-        end=near_term_end
-    )
-    dates_to_scrape.extend(sorted(partial_near))
-    logger.info(f"Priority 2 (near-term partial): {len(partial_near)} dates")
+    # Dates to scrape = dates with showings - complete dates
+    dates_to_scrape = sorted(dates_with_showings - complete_dates)
 
-    # Priority 3: Recently changed dates (check daily for 3 days)
-    recently_changed = self.db.get_recently_changed_dates(days=3)
-    for date in recently_changed:
-        if date not in dates_to_scrape:
-            dates_to_scrape.append(date)
-    logger.info(f"Priority 3 (recently changed): {len(recently_changed)} dates")
+    logger.info(f"Dates to scrape: {len(dates_to_scrape)}")
+    return dates_to_scrape
+```
 
-    # Priority 4: Far-future partial (check weekly)
-    far_future_partial = self.db.get_partial_dates_after(near_term_end)
-    for date in far_future_partial:
-        if self._should_check_weekly(date):
-            dates_to_scrape.append(date)
-    logger.info(f"Priority 4 (far-future partial): {len(far_future_partial)} dates")
+### Status Transitions
 
-    # Priority 5: Empty dates (re-check weekly for late additions)
-    empty_dates = self.db.get_dates_by_status(['empty'])
-    for date in empty_dates:
-        if self._should_check_weekly(date):
-            dates_to_scrape.append(date)
-    logger.info(f"Priority 5 (empty re-check): {len(empty_dates)} dates")
-
-    # Remove duplicates, keep order
-    seen = set()
-    unique_dates = []
-    for date in dates_to_scrape:
-        if date not in seen:
-            seen.add(date)
-            unique_dates.append(date)
-
-    logger.info(f"Total dates to scrape: {len(unique_dates)}")
-    return unique_dates
-
-def _should_check_weekly(self, date: str) -> bool:
-    """Check if date is due for weekly re-check"""
-    last_checked = self.db.get_last_checked(date)
-    if not last_checked:
-        return True
-
-    last_checked_dt = datetime.fromisoformat(last_checked)
-    now = datetime.now(ZoneInfo("UTC"))
-    days_since_check = (now - last_checked_dt).days
-
-    return days_since_check >= 7
+```
+unknown → (first scrape) → partial or complete or empty
+partial → (re-scrape) → complete (when CompletionChecker confirms)
+complete → (never changes - schedule is final)
+empty → (confirmed no showings)
 ```
 
 ### Database Queries
@@ -367,21 +476,9 @@ def scrape_date(self, date: str) -> ScrapeDateResult:
             status='empty'
         )
 
-    # 3. Get previous snapshot
-    previous_snapshot = self.db.get_latest_snapshot(date)
-
-    # 4. Detect changes
-    changes = []
-    if previous_snapshot:
-        changes = self._detect_changes(date, showings, previous_snapshot)
-        logger.info(f"Detected {len(changes)} changes for {date}")
-    else:
-        # First time seeing this date with showings
-        changes = [Change(
-            date=date,
-            change_type='first_seen',
-            details=f"Date first seen with {showing_count} showings"
-        )]
+    # 3. Detect changes (ChangeDetector fetches previous snapshot)
+    changes = self.change_detector.detect_changes(date, showings)
+    logger.info(f"Detected {len(changes)} changes for {date}")
 
     # 5. Record new snapshot
     snapshot_hash = compute_snapshot_hash(showings)
@@ -400,8 +497,8 @@ def scrape_date(self, date: str) -> ScrapeDateResult:
         for change in changes:
             self.db.record_change(change, snapshot_id)
 
-    # 8. Fetch runtimes and determine completion
-    is_complete = self._check_completion(date, showings)
+    # 8. Determine completion (CompletionChecker handles runtime fetching)
+    is_complete = self.completion_checker.is_complete(date, showings)
 
     # 9. Update scrape_schedule
     status = 'complete' if is_complete else 'partial'
@@ -559,14 +656,10 @@ def _check_completion(self, date: str, showings: List[Dict]) -> bool:
     missing_runtimes = []
 
     for showing in showings:
-        runtime_result = self.runtime_fetcher.get_runtime(
-            movie_title=showing['movie_title'],
-            detail_url_path=showing.get('detail_url_path'),
-            db=self.db
-        )
+        runtime = self.runtime_fetcher.get_runtime(showing['movie_title'])
 
-        if runtime_result:
-            runtimes[showing['id']] = runtime_result.runtime_minutes
+        if runtime:
+            runtimes[showing['id']] = runtime
         else:
             missing_runtimes.append(showing['movie_title'])
 
@@ -627,14 +720,11 @@ def _check_completion(self, date: str, showings: List[Dict]) -> bool:
     return True
 ```
 
+**Note:** Batch scraping removed per Decision 3. Daily script handles the loop explicitly.
+
 ---
 
-## 6. Batch Scraping
-
-### Scrape All Pending Dates
-
-```python
-def scrape_all_pending(self) -> ScrapeRunSummary:
+## 6. Data Classes
     """
     Execute daily scrape run
 
@@ -711,7 +801,7 @@ def scrape_all_pending(self) -> ScrapeRunSummary:
 
 ---
 
-## 7. Data Classes
+## 6. Data Classes
 
 ### Result Types
 
@@ -744,36 +834,21 @@ class ScrapeDateResult:
     is_complete: bool
     status: str  # 'empty', 'partial', 'complete', 'error'
     error: Optional[str] = None
-
-@dataclass
-class ScrapeRunSummary:
-    """Summary of full scrape run"""
-    started_at: str
-    completed_at: Optional[str] = None
-    duration_seconds: Optional[float] = None
-    dates_scraped: int = 0
-    new_dates_found: int = 0
-    changes_detected: int = 0
-    errors: List[str] = None
-
-    def __post_init__(self):
-        if self.errors is None:
-            self.errors = []
 ```
+
+**Note:** ScrapeRunSummary removed per Decision 3 (no batch scraping).
 
 ---
 
-## 8. Configuration
+## 7. Configuration
 
 ### Settings
 
 ```python
-# src/dynamicalsystem/listing/config.py
+# src/dynamicalsystem/listing/scraper/schedule.py
 
-class ScheduleManagerConfig:
-    # Re-scrape intervals
-    NEAR_TERM_DAYS = 14        # Check partial dates within 14 days daily
-    WEEKLY_RECHECK_DAYS = 7    # Re-check far-future/empty dates weekly
+class CompletionConfig:
+    """Configuration for completion detection"""
 
     # Completion heuristic
     SLOT_OVERHEAD_MINUTES = 40  # Ads (25) + changeover (15)
@@ -784,25 +859,22 @@ class ScheduleManagerConfig:
     CINEMA_TYPICAL_CLOSE = 23   # 23:00
     LATE_START_HOUR = 11        # If first showing after 11:00, might add morning
     EARLY_END_HOUR = 22         # If last showing ends before 22:00, might add evening
-
-    # Rate limiting
-    INTER_SCRAPE_DELAY = 1.0    # Seconds between date scrapes
-
-    # Retry
-    MAX_RETRIES = 2
-    RETRY_DELAY = 5             # Seconds
 ```
+
+**Note:** Removed re-scrape intervals (NEAR_TERM_DAYS, WEEKLY_RECHECK_DAYS) per Decision 2. Rate limiting and retry handled by daily script.
 
 ---
 
-## 9. Testing Strategy
+## 8. Testing Strategy
 
 ### Unit Tests
 
 ```python
-def test_horizon_scan_new_dates(db, fetcher, mock_html):
+def test_horizon_scan_new_dates(db, fetcher):
     """Test horizon scan discovers new dates"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+    change_detector = ChangeDetector(db)
+    completion_checker = CompletionChecker(runtime_fetcher, config)
+    manager = ScheduleManager(db, fetcher, runtime_fetcher, change_detector, completion_checker)
 
     # Mock HTML with performanceDays
     fetcher.fetch.return_value = mock_html_with_performance_days([
@@ -814,39 +886,41 @@ def test_horizon_scan_new_dates(db, fetcher, mock_html):
     assert len(result.dates_discovered) == 3
     assert '2025-10-26' in result.dates_discovered
 
-def test_get_dates_to_scrape_priority(db):
-    """Test re-scrape prioritization"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+def test_get_dates_to_scrape_simple_filter(db):
+    """Test simple binary filter (all - complete)"""
+    change_detector = ChangeDetector(db)
+    completion_checker = CompletionChecker(runtime_fetcher, config)
+    manager = ScheduleManager(db, fetcher, runtime_fetcher, change_detector, completion_checker)
 
     # Setup: add dates with different statuses
-    db.add_to_scrape_schedule('2025-10-26', 'unknown')  # Priority 1
-    db.add_to_scrape_schedule('2025-10-27', 'partial')   # Priority 2 (near-term)
-    db.add_to_scrape_schedule('2025-11-15', 'partial')   # Priority 4 (far-future)
+    db.update_schedule_status('2025-10-26', 'partial', 0)
+    db.update_schedule_status('2025-10-27', 'partial', 0)
+    db.update_schedule_status('2025-10-28', 'complete', 4)
 
     dates = manager.get_dates_to_scrape()
 
-    # Unknown should come first
-    assert dates[0] == '2025-10-26'
-    # Near-term partial should come before far-future
-    assert dates.index('2025-10-27') < dates.index('2025-11-15')
+    # Should get partial dates only
+    assert '2025-10-26' in dates
+    assert '2025-10-27' in dates
+    assert '2025-10-28' not in dates  # Complete, skip it
 
 def test_change_detection_added(db):
     """Test detecting added showing"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+    change_detector = ChangeDetector(db)
 
-    # Previous snapshot: 2 showings
+    # Store previous snapshot in db
     prev_showings = [
         {'id': '1', 'showing_time': '10:00', 'movie_title': 'Film A'},
         {'id': '2', 'showing_time': '14:00', 'movie_title': 'Film B'}
     ]
-    prev_snapshot = {'showings': prev_showings}
+    db.record_snapshot('2025-10-26', 2, compute_hash(prev_showings), prev_showings)
 
     # New: 3 showings (added one)
     new_showings = prev_showings + [
         {'id': '3', 'showing_time': '18:00', 'movie_title': 'Film C'}
     ]
 
-    changes = manager._detect_changes('2025-10-26', new_showings, prev_snapshot)
+    changes = change_detector.detect_changes('2025-10-26', new_showings)
 
     assert len(changes) == 1
     assert changes[0].change_type == 'added'
@@ -854,13 +928,14 @@ def test_change_detection_added(db):
 
 def test_change_detection_modified(db):
     """Test detecting field modification"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+    change_detector = ChangeDetector(db)
 
+    # Store previous snapshot in db
     prev_showings = [
         {'id': '1', 'showing_time': '10:00', 'movie_title': 'Film A',
          'availability_status': 'G', 'availability_count': 150}
     ]
-    prev_snapshot = {'showings': prev_showings}
+    db.record_snapshot('2025-10-26', 1, compute_hash(prev_showings), prev_showings)
 
     # Availability changed
     new_showings = [
@@ -868,7 +943,7 @@ def test_change_detection_modified(db):
          'availability_status': 'L', 'availability_count': 38}
     ]
 
-    changes = manager._detect_changes('2025-10-26', new_showings, prev_snapshot)
+    changes = change_detector.detect_changes('2025-10-26', new_showings)
 
     assert len(changes) == 1
     assert changes[0].change_type == 'modified'
@@ -877,9 +952,9 @@ def test_change_detection_modified(db):
     assert details['changes']['availability_status']['from'] == 'G'
     assert details['changes']['availability_status']['to'] == 'L'
 
-def test_completion_detection_complete(db, runtime_fetcher):
+def test_completion_detection_complete(runtime_fetcher):
     """Test completion detection with no gaps"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+    completion_checker = CompletionChecker(runtime_fetcher, config)
 
     showings = [
         {'id': '1', 'showing_time': '10:45', 'movie_title': 'Film A'},
@@ -888,33 +963,25 @@ def test_completion_detection_complete(db, runtime_fetcher):
         {'id': '4', 'showing_time': '20:30', 'movie_title': 'Film D'}
     ]
 
-    # Mock runtimes (from Oct 26 example)
-    runtime_fetcher.get_runtime.side_effect = [
-        RuntimeResult(150, 'BFI', 'confirmed', 'url'),
-        RuntimeResult(119, 'BFI', 'confirmed', 'url'),
-        RuntimeResult(162, 'BFI', 'confirmed', 'url'),
-        RuntimeResult(100, 'BFI', 'confirmed', 'url')
-    ]
+    # Mock runtimes
+    runtime_fetcher.get_runtime.side_effect = [150, 119, 162, 100]
 
-    is_complete = manager._check_completion('2025-10-26', showings)
+    is_complete = completion_checker.is_complete('2025-10-26', showings)
 
     assert is_complete is True
 
-def test_completion_detection_has_gap(db, runtime_fetcher):
+def test_completion_detection_has_gap(runtime_fetcher):
     """Test completion detection with large gap"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+    completion_checker = CompletionChecker(runtime_fetcher, config)
 
     showings = [
         {'id': '1', 'showing_time': '10:00', 'movie_title': 'Film A'},
         {'id': '2', 'showing_time': '17:00', 'movie_title': 'Film B'}  # 7 hour gap
     ]
 
-    runtime_fetcher.get_runtime.side_effect = [
-        RuntimeResult(90, 'BFI', 'confirmed', 'url'),
-        RuntimeResult(90, 'BFI', 'confirmed', 'url')
-    ]
+    runtime_fetcher.get_runtime.side_effect = [90, 90]
 
-    is_complete = manager._check_completion('2025-10-26', showings)
+    is_complete = completion_checker.is_complete('2025-10-26', showings)
 
     assert is_complete is False  # Gap of 5+ hours allows more showings
 ```
@@ -924,13 +991,15 @@ def test_completion_detection_has_gap(db, runtime_fetcher):
 ```python
 def test_scrape_date_full_workflow(db, fetcher, runtime_fetcher):
     """Test complete scrape_date workflow"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+    change_detector = ChangeDetector(db)
+    completion_checker = CompletionChecker(runtime_fetcher, config)
+    manager = ScheduleManager(db, fetcher, runtime_fetcher, change_detector, completion_checker)
 
     # Mock BFI response
     fetcher.fetch.return_value = load_fixture('bfi_cloudscraper_2025-10-26.html')
 
     # Mock runtimes
-    runtime_fetcher.get_runtime.return_value = RuntimeResult(150, 'BFI', 'confirmed', 'url')
+    runtime_fetcher.get_runtime.return_value = 150
 
     result = manager.scrape_date('2025-10-26')
 
@@ -946,32 +1015,37 @@ def test_scrape_date_full_workflow(db, fetcher, runtime_fetcher):
     assert snapshot is not None
     assert snapshot['showing_count'] == 4
 
-def test_scrape_all_pending(db, fetcher, runtime_fetcher):
-    """Test full scrape run"""
-    manager = ScheduleManager(db, fetcher, runtime_fetcher)
+def test_daily_scrape_workflow(db, fetcher, runtime_fetcher):
+    """Test daily script workflow (no batch scraping)"""
+    change_detector = ChangeDetector(db)
+    completion_checker = CompletionChecker(runtime_fetcher, config)
+    manager = ScheduleManager(db, fetcher, runtime_fetcher, change_detector, completion_checker)
 
-    # Setup: add dates to scrape
-    db.add_to_scrape_schedule('2025-10-26', 'unknown')
-    db.add_to_scrape_schedule('2025-10-27', 'partial')
+    # Setup: add dates
+    db.update_schedule_status('2025-10-26', 'partial', 0)
+    db.update_schedule_status('2025-10-27', 'partial', 0)
 
     # Mock responses
-    fetcher.fetch.side_effect = [
-        load_fixture('bfi_cloudscraper_2025-10-26.html'),  # Horizon scan
-        load_fixture('bfi_cloudscraper_2025-10-26.html'),  # Date 1
-        load_fixture('bfi_no_results_2025-10-27.html')     # Date 2
-    ]
+    fetcher.fetch.return_value = load_fixture('bfi_cloudscraper_2025-10-26.html')
+    runtime_fetcher.get_runtime.return_value = 120
 
-    runtime_fetcher.get_runtime.return_value = RuntimeResult(120, 'BFI', 'confirmed', 'url')
+    # Daily script does the loop (not manager)
+    manager.update_horizon()
+    dates = manager.get_dates_to_scrape()
 
-    summary = manager.scrape_all_pending()
+    results = []
+    for date in dates:
+        result = manager.scrape_date(date)
+        results.append(result)
 
-    assert summary.dates_scraped >= 2
-    assert len(summary.errors) == 0
+    assert len(results) == 2
 ```
+
+**Note:** Removed `test_scrape_all_pending()` per Decision 3 (no batch scraping).
 
 ---
 
-## 10. Error Handling
+## 9. Error Handling
 
 ### Retry Logic
 
@@ -1025,7 +1099,7 @@ def scrape_date(self, date: str) -> ScrapeDateResult:
 
 ---
 
-## 11. Performance Optimizations
+## 10. Performance Optimizations
 
 ### Snapshot Hash Quick Check
 
@@ -1101,7 +1175,7 @@ Schedule manager is successful if:
 - [ ] Re-scrape priority correctly identifies dates needing attention
 - [ ] Change detection catches all types (added/removed/modified)
 - [ ] Completion detection accuracy >90% (validated over 2 weeks)
-- [ ] Batch scrape completes in <5 minutes for typical load (~16 dates)
+- [ ] Daily scrape completes in <5 minutes for typical load (~16 dates)
 - [ ] Graceful error handling (never crashes)
 - [ ] Database state always consistent
 
