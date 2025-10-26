@@ -1,15 +1,15 @@
 # BFI IMAX Listing Scraper
 
 **Start Date**: 2025-10-24
-**Status**: [x] OBSERVE Phase Complete, ORIENT Phase Starting
+**Status**: [x] OBSERVE Complete, [x] ORIENT Complete, [~] ACT Planning
 **Outcome**: Scrape BFI IMAX schedule, maintain daily listings, present via webpage
 
 ## Quick Status
 
-- [x] **OBSERVE** Complete (5 audits complete)
-- [~] **ORIENT** Starting
+- [x] **OBSERVE** Complete (6 audits complete, 2025-10-25)
+- [x] **ORIENT** Complete (6 designs complete, 2025-10-26)
 - [x] **DECIDE** Core decisions validated
-- [...] **ACT** Not Started
+- [~] **ACT** Planning (2025-10-26)
 
 ## Overview
 
@@ -36,7 +36,7 @@ This OODA outcome implements a scraper and presentation system for BFI IMAX movi
 
 ## OBSERVE Phase [x]
 
-**Status**: Complete (5 audits complete, 2025-10-25)
+**Status**: Complete (6 audits complete, 2025-10-25)
 **Goal**: Understand BFI website structure, constraints, and data patterns
 
 **Completed**:
@@ -111,12 +111,21 @@ This OODA outcome implements a scraper and presentation system for BFI IMAX movi
 
 See [decision.md](./decision.md) for full rationale and trade-offs.
 
-## ACT Phase [...]
+## ACT Phase [~]
 
-**Status**: Not Started
+**Status**: Planning (2025-10-26)
 **Goal**: Implement system
 
-Implementation branches TBD.
+**Strategy**: [PLANNING.md](./act/PLANNING.md)
+
+**Implementation Branches** (5 total):
+1. [ ] ACT-01: Database Layer (1-2 days)
+2. [ ] ACT-02: Runtime Fetcher (2-3 days)
+3. [ ] ACT-03: Schedule Manager (3-4 days)
+4. [ ] ACT-04: Daily Maintenance (1 day)
+5. [ ] ACT-05: Go Web Server (2-3 days)
+
+**Timeline**: ~2 weeks (estimated)
 
 ## Related Documents
 
