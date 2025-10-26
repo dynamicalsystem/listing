@@ -9,7 +9,7 @@
 
 - **Plan**: [../PLANNING.md](../PLANNING.md)
 - **Design**: [../../orient/sqlite-schema-design.md](../../orient/sqlite-schema-design.md)
-- **Merge Commit**: (pending)
+- **Merge Commit**: `805d9e2`
 
 ## Timeline
 
@@ -19,7 +19,7 @@
 | Implementation | 2025-10-26 | schema.py + db.py + tests |
 | Testing | 2025-10-26 | 42 tests passing, no warnings |
 | Outcome verified | 2025-10-26 | All database operations functional |
-| Merged to main | (pending) | Direct merge |
+| Merged to main | 2025-10-26 | 805d9e2 (direct merge) |
 
 ## Implementation Summary
 

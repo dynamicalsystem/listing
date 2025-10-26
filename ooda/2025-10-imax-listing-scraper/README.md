@@ -119,7 +119,7 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
 **Strategy**: [PLANNING.md](./act/PLANNING.md)
 
 **Implementation Branches** (5 total):
-1. [~] ACT-01: Database Layer (started 2025-10-26, branch: act/01-database-layer)
+1. [x] ACT-01: Database Layer (merged 2025-10-26, commit: 805d9e2)
    - [x] schema.py with 5 tables + 2 views
    - [x] db.py with Database class (13 operations)
    - [x] 42 unit tests passing
