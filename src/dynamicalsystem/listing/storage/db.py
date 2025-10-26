@@ -627,22 +627,22 @@ class Database:
     # Runtime Cache Operations
     # -------------------------------------------------------------------------
 
-    def get_runtime(self, movie_title: str) -> Optional[Dict]:
+    def get_runtime(self, movie_title: str) -> Optional[int]:
         """Get cached runtime for movie.
 
         Args:
             movie_title: Movie title
 
         Returns:
-            Runtime dictionary or None
+            Runtime in minutes or None if unknown
         """
         conn = self._get_connection()
         try:
             cursor = conn.execute("""
-                SELECT * FROM movie_runtimes WHERE movie_title = ?
+                SELECT runtime_minutes FROM movie_runtimes WHERE movie_title = ?
             """, (movie_title,))
             row = cursor.fetchone()
-            return dict(row) if row else None
+            return row[0] if row else None
         finally:
             conn.close()
 
@@ -650,18 +650,14 @@ class Database:
         self,
         movie_title: str,
         runtime_minutes: int,
-        source: str,
-        source_url: Optional[str] = None,
-        confidence: str = 'confirmed'
+        source: str
     ) -> None:
         """Cache runtime from external source.
 
         Args:
             movie_title: Movie title
             runtime_minutes: Runtime in minutes
-            source: 'BFI', 'Wikipedia', 'IMDb', 'TMDb'
-            source_url: URL where runtime was found
-            confidence: 'confirmed', 'estimated', 'uncertain'
+            source: 'BFI' or 'Wikipedia'
         """
         conn = self._get_connection()
         now_utc = datetime.now(UTC).isoformat()
@@ -669,11 +665,9 @@ class Database:
         try:
             conn.execute("""
                 INSERT OR REPLACE INTO movie_runtimes (
-                    movie_title, runtime_minutes, source, source_url,
-                    confidence, fetched_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (movie_title, runtime_minutes, source, source_url,
-                  confidence, now_utc))
+                    movie_title, runtime_minutes, source, fetched_at
+                ) VALUES (?, ?, ?, ?)
+            """, (movie_title, runtime_minutes, source, now_utc))
             conn.commit()
         finally:
             conn.close()

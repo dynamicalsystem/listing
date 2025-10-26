@@ -854,36 +854,80 @@ def get_runtimes_concurrent(movies: List[Dict], db = None, max_workers: int = 3)
 
 ---
 
-## Open Questions
+## Design Decisions (2025-10-26)
 
-### 1. TMDb API Key
+### 1. Simplified External Sources
 
-**Question**: Should we require TMDb API key, or make it optional?
+**Decision**: BFI detail page → Wikipedia fallback only. Remove IMDb and TMDb.
 
-**Options**:
-- Required: Better coverage, but adds setup complexity
-- Optional: Wikipedia/IMDb fallbacks sufficient for most cases
+**Rationale**:
+- Wikipedia has good coverage for mainstream films
+- More stable/reliable than IMDb (less likely to block)
+- Simpler implementation (direct URL, no search step)
+- Two-tier approach is sufficient for our needs
 
-**Recommendation**: Make optional, document as enhancement.
+**Impact**:
+- Fewer external requests (~2-3/day vs 6-9/day)
+- Simpler error handling
+- Less maintenance (fewer APIs to track)
 
-### 2. Confidence Thresholds
+### 2. Simplified Confidence Model
 
-**Question**: What confidence level should schedule manager require?
+**Decision**: Remove confidence field entirely. Runtime is either known (INTEGER) or unknown (NULL).
 
-**Options**:
-- Only use 'confirmed' runtimes for completion detection
-- Use 'estimated' as fallback with conservative gap threshold
-- Use 'uncertain' only as last resort
+**Rationale**:
+- Over-engineered: 'confirmed' vs 'estimated' vs 'uncertain' adds no value
+- NULL clearly means "we haven't found it yet, retry next time"
+- INTEGER clearly means "we know it, use it for completion detection"
+- Database schema is simpler
 
-**Recommendation**: Accept confirmed + estimated, reject uncertain.
+**Old Schema**:
+```sql
+confidence TEXT  -- 'confirmed', 'estimated', 'uncertain'
+```
 
-### 3. Stale Runtime Updates
+**New Schema**:
+```sql
+runtime_minutes INTEGER  -- NULL = unknown, INTEGER = known
+```
 
-**Question**: Should we re-fetch runtimes that were "TBC" after X days?
+**Impact**:
+- Completion detection only uses known runtimes (NULL = mark day incomplete)
+- No need for confidence thresholds or special handling
+- Cache logic simplified: only cache successful finds
 
-**Scenario**: Film initially shows as "TBC", gets proper runtime closer to release
+### 3. No Stale Runtime Tracking
 
-**Solution**: Add `last_checked` field to movie_runtimes, re-check "uncertain" entries weekly.
+**Decision**: Don't cache unavailable runtimes. Simply return None and retry next time.
+
+**Rationale**:
+- If runtime not found, don't cache NULL (or cache failure)
+- Next scrape will naturally retry
+- No need for `last_checked` field or weekly re-check logic
+- Simpler database queries
+
+**Impact**:
+- Slight increase in external requests (retry on each scrape until found)
+- But most films will be found first try (BFI or Wikipedia)
+- Trade simplicity for minimal extra requests
+
+### 4. Minimal Database Fields
+
+**Decision**: Keep only essential fields in movie_runtimes table.
+
+**Fields**:
+- `movie_title` (PRIMARY KEY)
+- `runtime_minutes` (INTEGER, NULL if unknown)
+- `source` (TEXT: 'BFI' or 'Wikipedia' - for audit only)
+- `fetched_at` (TEXT: ISO 8601 UTC timestamp)
+
+**Removed**:
+- `confidence` (redundant - covered by NULL vs INTEGER)
+- `source_url` (adds complexity, not needed for operation)
+- `last_checked` (not needed with no-cache-on-failure approach)
+
+**Impact on schema.py**: Requires update to movie_runtimes table definition
+**Impact on db.py**: Requires update to cache_runtime() and get_runtime() methods
 
 ---
 
