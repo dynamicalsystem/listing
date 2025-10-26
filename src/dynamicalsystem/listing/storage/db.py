@@ -12,7 +12,7 @@ import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from .schema import init_database, migrate_database
 
@@ -91,16 +91,15 @@ class Database:
                 try:
                     conn.execute("""
                         INSERT INTO listings (
-                            bfi_showing_id, bfi_performance_id,
+                            bfi_showing_id,
                             movie_title, movie_slug, rating,
                             showing_date, showing_time, showing_datetime_utc, showing_datetime_display,
                             format_keywords, is_3d, is_70mm, is_laser, has_subtitles,
                             detail_url_path, detail_url_full,
                             availability_status, availability_count
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         showing.get('bfi_showing_id'),
-                        showing.get('bfi_performance_id'),
                         showing.get('movie_title'),
                         showing.get('movie_slug'),
                         showing.get('rating'),
@@ -330,6 +329,142 @@ class Database:
         finally:
             conn.close()
 
+    def get_all_scheduled_dates(self) -> Set[str]:
+        """Get all dates in scrape_schedule.
+
+        Returns:
+            Set of dates in YYYY-MM-DD format
+        """
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("SELECT date FROM scrape_schedule")
+            return {row['date'] for row in cursor.fetchall()}
+        finally:
+            conn.close()
+
+    def get_dates_by_status(self, statuses: List[str]) -> Set[str]:
+        """Get dates with specific statuses.
+
+        Args:
+            statuses: List of status values to filter by
+
+        Returns:
+            Set of dates in YYYY-MM-DD format
+        """
+        if not statuses:
+            return set()
+
+        conn = self._get_connection()
+        try:
+            placeholders = ','.join('?' * len(statuses))
+            cursor = conn.execute(
+                f"SELECT date FROM scrape_schedule WHERE status IN ({placeholders})",
+                statuses
+            )
+            return {row['date'] for row in cursor.fetchall()}
+        finally:
+            conn.close()
+
+    def add_to_scrape_schedule(
+        self,
+        date: str,
+        status: str,
+        first_seen: str
+    ) -> None:
+        """Add new date to scrape_schedule.
+
+        Args:
+            date: Date in YYYY-MM-DD format
+            status: Initial status ('unknown' typically)
+            first_seen: ISO 8601 timestamp when first discovered
+        """
+        conn = self._get_connection()
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO scrape_schedule (
+                    date, status, showing_count, is_complete, first_seen
+                ) VALUES (?, ?, 0, 0, ?)
+            """, (date, status, first_seen))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def update_scrape_schedule(
+        self,
+        date: str,
+        status: Optional[str] = None,
+        showing_count: Optional[int] = None,
+        is_complete: Optional[bool] = None,
+        last_scraped: Optional[str] = None,
+        last_checked: Optional[str] = None,
+        snapshot_hash: Optional[str] = None
+    ) -> None:
+        """Update specific fields in scrape_schedule.
+
+        Args:
+            date: Date in YYYY-MM-DD format
+            status: Status to set (if provided)
+            showing_count: Showing count to set (if provided)
+            is_complete: Completion flag to set (if provided)
+            last_scraped: Last scraped timestamp (if provided)
+            last_checked: Last checked timestamp (if provided)
+            snapshot_hash: Snapshot hash (if provided)
+        """
+        # Build dynamic UPDATE statement for only provided fields
+        updates = []
+        params = []
+
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+
+        if showing_count is not None:
+            updates.append("showing_count = ?")
+            params.append(showing_count)
+
+        if is_complete is not None:
+            updates.append("is_complete = ?")
+            params.append(is_complete)
+
+        if last_scraped is not None:
+            updates.append("last_scraped = ?")
+            params.append(last_scraped)
+
+        if last_checked is not None:
+            updates.append("last_checked = ?")
+            params.append(last_checked)
+
+        if snapshot_hash is not None:
+            updates.append("snapshot_hash = ?")
+            params.append(snapshot_hash)
+
+        if not updates:
+            # Nothing to update
+            return
+
+        params.append(date)
+
+        conn = self._get_connection()
+        try:
+            conn.execute(
+                f"UPDATE scrape_schedule SET {', '.join(updates)} WHERE date = ?",
+                params
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def upsert_showings(self, showings: List[Dict]) -> int:
+        """Insert or update showings (alias for insert_showings).
+
+        Args:
+            showings: List of showing dictionaries
+
+        Returns:
+            Number of showings inserted
+        """
+        return self.insert_showings(showings)
+
     # -------------------------------------------------------------------------
     # Snapshot Operations
     # -------------------------------------------------------------------------
@@ -385,14 +520,17 @@ class Database:
     def get_latest_snapshot(self, date: str) -> Optional[Dict]:
         """Get most recent snapshot for a date.
 
+        Includes the showings from listings table for comparison.
+
         Args:
             date: Date in YYYY-MM-DD format
 
         Returns:
-            Snapshot dictionary or None
+            Snapshot dictionary with 'showings' key or None
         """
         conn = self._get_connection()
         try:
+            # Get snapshot metadata
             cursor = conn.execute("""
                 SELECT * FROM schedule_snapshots
                 WHERE date = ?
@@ -400,7 +538,23 @@ class Database:
                 LIMIT 1
             """, (date,))
             row = cursor.fetchone()
-            return dict(row) if row else None
+
+            if not row:
+                return None
+
+            snapshot = dict(row)
+
+            # Get showings from listings table for this date
+            # (These are the showings that created this snapshot)
+            cursor = conn.execute("""
+                SELECT * FROM listings
+                WHERE showing_date = ?
+                ORDER BY showing_time
+            """, (date,))
+
+            snapshot['showings'] = [dict(r) for r in cursor.fetchall()]
+
+            return snapshot
         finally:
             conn.close()
 
@@ -620,6 +774,33 @@ class Database:
                 ORDER BY detected_at
             """, (date,))
             return [dict(row) for row in cursor.fetchall()]
+        finally:
+            conn.close()
+
+    def record_change(self, change, snapshot_id: int) -> None:
+        """Record a single schedule change.
+
+        Args:
+            change: Change object with date, change_type, showing_time, movie_title, details
+            snapshot_id: ID of the new snapshot
+        """
+        from dynamicalsystem.listing.scraper.changes import Change
+
+        if not isinstance(change, Change):
+            raise TypeError(f"Expected Change object, got {type(change)}")
+
+        conn = self._get_connection()
+        now_utc = datetime.now(UTC).isoformat()
+
+        try:
+            conn.execute("""
+                INSERT INTO schedule_changes (
+                    date, change_type, showing_time, movie_title,
+                    details, detected_at, new_snapshot_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (change.date, change.change_type, change.showing_time,
+                  change.movie_title, change.details, now_utc, snapshot_id))
+            conn.commit()
         finally:
             conn.close()
 

@@ -30,7 +30,6 @@ def sample_showing():
     """Create sample showing for testing."""
     return {
         'bfi_showing_id': 'ABC123',
-        'bfi_performance_id': 'PERF456',
         'movie_title': 'Frankenstein',
         'movie_slug': 'frank_26oct25',
         'rating': '15',

@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS listings (
 
     -- BFI identifiers
     bfi_showing_id TEXT NOT NULL,
-    bfi_performance_id TEXT,
 
     -- Movie details
     movie_title TEXT NOT NULL,
