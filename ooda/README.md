@@ -2,20 +2,20 @@
 
 This directory contains outcome-based OODA (Observe, Orient, Decide, Act) loop documentation.
 
-## Current Status: [...] OBSERVE In Progress
+## Current Status: [x] ORIENT Complete
 
 ## Active Outcomes
 
 ### 2025-10-imax-listing-scraper
-**Status**: [x] OBSERVE Complete, [~] ORIENT Starting
+**Status**: [x] OBSERVE Complete, [x] ORIENT Complete
 **Start Date**: 2025-10-24
 **Directory**: [2025-10-imax-listing-scraper/](./2025-10-imax-listing-scraper/)
 
 Scrape BFI IMAX schedule, maintain daily listings database, and present data via webpage.
 
 **Progress**:
-- [x] OBSERVE Complete (5 audits complete, 2025-10-25)
-- [~] ORIENT Starting
+- [x] OBSERVE Complete (6 audits complete, 2025-10-25)
+- [x] ORIENT Complete (6/6 designs complete, 2025-10-26)
 - [x] DECIDE Core decisions validated
 - [...] ACT Not Started
 

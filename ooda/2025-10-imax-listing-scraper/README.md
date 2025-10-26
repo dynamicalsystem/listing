@@ -54,18 +54,39 @@ This OODA outcome implements a scraper and presentation system for BFI IMAX movi
 - performanceDays array enables single-request horizon discovery
 - Change tracking required to learn scheduling patterns
 
-## ORIENT Phase [~]
+## ORIENT Phase [x]
 
-**Status**: Starting
+**Status**: Complete (6/6 complete, 2025-10-26)
 **Goal**: Design scraper architecture, storage, and presentation layer
 
-**Pending Designs**:
-- [ ] Parser module architecture (searchResults, performanceDays, runtimes)
-- [ ] SQLite schema (listings, schedules, changes, runtimes)
-- [ ] Schedule manager design (horizon scan, dates_to_query, re-scrape logic)
-- [ ] Runtime fetcher design (BFI + Wikipedia/IMDb fallback)
-- [ ] Daily maintenance workflow
-- [ ] Go web server architecture
+**Completed**:
+- [x] [parser-module-design.md](./orient/parser-module-design.md) - Parser module implemented and tested
+  - Implementation: `src/dynamicalsystem/listing/scraper/parse.py`
+  - Tests: `tests/test_parser.py` (17 tests passing)
+  - Package structure: Proper installable namespace package with pytest
+- [x] [sqlite-schema-design.md](./orient/sqlite-schema-design.md) - Database schema design
+  - 5 core tables: listings, scrape_schedule, schedule_snapshots, schedule_changes, movie_runtimes
+  - UTC timezone handling with denormalized UK local fields
+  - Field-level change tracking, 30-day snapshot pruning
+- [x] [runtime-fetcher-design.md](./orient/runtime-fetcher-design.md) - Runtime fetcher design
+  - Multi-tier fallback: BFI → Wikipedia → IMDb → TMDb
+  - Database caching strategy
+  - Rate limiting and error handling
+- [x] [schedule-manager-design.md](./orient/schedule-manager-design.md) - Schedule manager design
+  - Horizon scanning via performanceDays array
+  - Priority-based re-scrape logic (5 tiers)
+  - Field-level change detection
+  - Runtime-based completion detection
+- [x] [daily-maintenance-workflow.md](./orient/daily-maintenance-workflow.md) - Daily maintenance design
+  - Thin wrapper around ScheduleManager
+  - Cron configuration inside Docker
+  - Logging, monitoring, and health checks
+  - Exit codes and error handling
+- [x] [go-webserver-design.md](./orient/go-webserver-design.md) - Go web server design
+  - Stdlib HTTP server (no framework)
+  - HTML templates + RSS feeds
+  - Health endpoint for monitoring
+  - Mobile-responsive CSS
 
 ## DECIDE Phase [x]
 
