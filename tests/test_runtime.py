@@ -66,65 +66,10 @@ def test_get_runtime_cache_hit(fetcher, db):
 
 def test_get_runtime_cache_miss_triggers_fetch(fetcher):
     """Test cache miss triggers fetch attempts."""
-    with patch.object(fetcher, '_fetch_from_bfi', return_value=RuntimeResult(150, 'BFI')):
-        runtime = fetcher.get_runtime('Frankenstein', detail_url_path='film/test.asp')
+    with patch.object(fetcher, '_fetch_from_wikipedia', return_value=RuntimeResult(150, 'Wikipedia')):
+        runtime = fetcher.get_runtime('Frankenstein')
 
         assert runtime == 150
-
-
-# -------------------------------------------------------------------------
-# BFI Extraction Tests
-# -------------------------------------------------------------------------
-
-@responses.activate
-def test_fetch_from_bfi_success(fetcher):
-    """Test successful BFI runtime extraction."""
-    html = load_fixture('bfi_detail_frankenstein.html')
-
-    responses.add(
-        responses.GET,
-        'https://whatson.bfi.org.uk/imax/Online/film/frankenstein.asp',
-        body=html,
-        status=200
-    )
-
-    result = fetcher._fetch_from_bfi('film/frankenstein.asp')
-
-    assert result is not None
-    assert result.runtime_minutes == 150
-    assert result.source == 'BFI'
-
-
-@responses.activate
-def test_fetch_from_bfi_tbc(fetcher):
-    """Test BFI page with TBC runtime."""
-    html = load_fixture('bfi_detail_tbc.html')
-
-    responses.add(
-        responses.GET,
-        'https://whatson.bfi.org.uk/imax/Online/film/upcoming.asp',
-        body=html,
-        status=200
-    )
-
-    result = fetcher._fetch_from_bfi('film/upcoming.asp')
-
-    assert result is None  # TBC should return None
-
-
-@responses.activate
-def test_fetch_from_bfi_network_error(fetcher):
-    """Test BFI fetch handles network errors gracefully."""
-    responses.add(
-        responses.GET,
-        'https://whatson.bfi.org.uk/imax/Online/film/test.asp',
-        body='',
-        status=500
-    )
-
-    result = fetcher._fetch_from_bfi('film/test.asp')
-
-    assert result is None
 
 
 # -------------------------------------------------------------------------
@@ -209,53 +154,24 @@ def test_normalize_title_removes_special_chars(fetcher):
 # -------------------------------------------------------------------------
 
 @responses.activate
-def test_get_runtime_bfi_success_caches_result(fetcher, db):
-    """Test successful BFI fetch caches result."""
-    html = load_fixture('bfi_detail_frankenstein.html')
+def test_get_runtime_wikipedia_success_caches_result(fetcher, db):
+    """Test successful Wikipedia fetch caches result."""
+    html = load_fixture('wikipedia_interstellar.html')
 
     responses.add(
         responses.GET,
-        'https://whatson.bfi.org.uk/imax/Online/film/frank.asp',
+        'https://en.wikipedia.org/wiki/Interstellar_(film)',
         body=html,
         status=200
     )
 
     # First call should fetch and cache
-    runtime = fetcher.get_runtime('Frankenstein', detail_url_path='film/frank.asp')
-    assert runtime == 150
-
-    # Verify it's cached
-    cached = db.get_runtime('Frankenstein')
-    assert cached == 150
-
-
-@responses.activate
-def test_get_runtime_falls_back_to_wikipedia(fetcher, db):
-    """Test fallback to Wikipedia when BFI fails."""
-    # BFI returns TBC
-    bfi_html = load_fixture('bfi_detail_tbc.html')
-    responses.add(
-        responses.GET,
-        'https://whatson.bfi.org.uk/imax/Online/film/upcoming.asp',
-        body=bfi_html,
-        status=200
-    )
-
-    # Wikipedia succeeds
-    wiki_html = load_fixture('wikipedia_interstellar.html')
-    responses.add(
-        responses.GET,
-        'https://en.wikipedia.org/wiki/Upcoming_Film_(film)',
-        body=wiki_html,
-        status=200
-    )
-
-    runtime = fetcher.get_runtime('Upcoming Film', detail_url_path='film/upcoming.asp')
-
+    runtime = fetcher.get_runtime('Interstellar')
     assert runtime == 169
 
-    # Verify cached with Wikipedia source
-    # Note: Can't verify source without extending get_runtime API
+    # Verify it's cached
+    cached = db.get_runtime('Interstellar')
+    assert cached == 169
 
 
 @responses.activate
@@ -284,11 +200,10 @@ def test_get_runtime_tries_multiple_wikipedia_urls(fetcher):
 
 def test_get_runtime_returns_none_when_not_found(fetcher):
     """Test returns None when runtime not found anywhere."""
-    with patch.object(fetcher, '_fetch_from_bfi', return_value=None):
-        with patch.object(fetcher, '_fetch_from_wikipedia', return_value=None):
-            runtime = fetcher.get_runtime('Unknown Film', detail_url_path='film/unknown.asp')
+    with patch.object(fetcher, '_fetch_from_wikipedia', return_value=None):
+        runtime = fetcher.get_runtime('Unknown Film')
 
-            assert runtime is None
+        assert runtime is None
 
 
 # -------------------------------------------------------------------------

@@ -1,10 +1,12 @@
 """Runtime fetcher for movie runtimes.
 
-Fetches movie runtimes from multiple sources:
-1. BFI detail page (primary)
-2. Wikipedia (fallback)
+Fetches movie runtimes from Wikipedia.
 
 Caches results in database to avoid repeated requests.
+
+Design decision (2025-10-26): Wikipedia-only approach.
+BFI detail pages blocked by Cloudflare (403). Wikipedia has 100% success
+rate for IMAX films and is simpler (no cloudscraper needed).
 """
 
 import re
@@ -30,14 +32,13 @@ class RuntimeResult:
 
 
 class RuntimeFetcher:
-    """Fetches and caches movie runtimes from multiple sources.
+    """Fetches and caches movie runtimes from Wikipedia.
 
     Strategy:
     1. Check database cache
-    2. Try BFI detail page
-    3. Fall back to Wikipedia
-    4. Cache successful result
-    5. Return None if not found
+    2. Fetch from Wikipedia
+    3. Cache successful result
+    4. Return None if not found
     """
 
     def __init__(self, db: Database):
@@ -58,16 +59,11 @@ class RuntimeFetcher:
         self._last_wikipedia_request = 0
         self._wikipedia_delay = 1.0  # seconds
 
-    def get_runtime(
-        self,
-        movie_title: str,
-        detail_url_path: Optional[str] = None
-    ) -> Optional[int]:
+    def get_runtime(self, movie_title: str) -> Optional[int]:
         """Get runtime for movie, with caching.
 
         Args:
             movie_title: Movie title
-            detail_url_path: BFI detail page URL path (e.g., "film/xxx.asp")
 
         Returns:
             Runtime in minutes or None if not found
@@ -80,15 +76,7 @@ class RuntimeFetcher:
 
         logger.info(f"Fetching runtime for '{movie_title}'")
 
-        # Try BFI detail page
-        if detail_url_path:
-            result = self._fetch_from_bfi(detail_url_path)
-            if result:
-                logger.info(f"Found runtime from BFI: {result.runtime_minutes}min")
-                self.db.cache_runtime(movie_title, result.runtime_minutes, result.source)
-                return result.runtime_minutes
-
-        # Fall back to Wikipedia
+        # Fetch from Wikipedia
         result = self._fetch_from_wikipedia(movie_title)
         if result:
             logger.info(f"Found runtime from Wikipedia: {result.runtime_minutes}min")
@@ -97,43 +85,6 @@ class RuntimeFetcher:
 
         logger.warning(f"Runtime not found for '{movie_title}'")
         return None
-
-    def _fetch_from_bfi(self, detail_url_path: str) -> Optional[RuntimeResult]:
-        """Fetch runtime from BFI detail page.
-
-        Args:
-            detail_url_path: URL path like "film/xxx.asp"
-
-        Returns:
-            RuntimeResult or None if not found or TBC
-        """
-        url = f"https://whatson.bfi.org.uk/imax/Online/{detail_url_path}"
-
-        try:
-            response = self.session.get(url, timeout=10)
-            response.raise_for_status()
-
-            # Extract runtime using pattern: "2024. 150min"
-            # Common variations: "2024. 150min", "2024. TBC"
-            pattern = r'\d{4}\.\s*(\d+)min'
-            match = re.search(pattern, response.text)
-
-            if match:
-                runtime_minutes = int(match.group(1))
-                if 0 < runtime_minutes < 500:  # Sanity check
-                    return RuntimeResult(runtime_minutes, 'BFI')
-                else:
-                    logger.warning(f"BFI runtime out of range: {runtime_minutes}min")
-
-            # Check if it's explicitly TBC
-            if 'TBC' in response.text or 'tbc' in response.text.lower():
-                logger.debug(f"BFI shows TBC for {detail_url_path}")
-
-            return None
-
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch BFI detail page: {e}")
-            return None
 
     def _fetch_from_wikipedia(self, movie_title: str) -> Optional[RuntimeResult]:
         """Fetch runtime from Wikipedia.
