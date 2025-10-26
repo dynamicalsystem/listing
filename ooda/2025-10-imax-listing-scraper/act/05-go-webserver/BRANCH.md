@@ -9,7 +9,7 @@
 
 - **Plan**: [../PLANNING.md](../PLANNING.md)
 - **Design**: [../../orient/go-webserver-design.md](../../orient/go-webserver-design.md) (adapted to Python)
-- **Merge Commit**: (pending)
+- **Merge Commit**: `c278c62`
 
 ## Timeline
 
@@ -20,7 +20,7 @@
 | Implementation | 2025-10-26 | FastAPI server with all endpoints |
 | Testing | 2025-10-26 | Manual testing - all endpoints working |
 | Outcome verified | 2025-10-26 | Full web presentation functional |
-| Merged to main | 2025-10-26 | (pending) |
+| Merged to main | 2025-10-26 | c278c62 (merge commit) |
 
 ## Implementation Summary
 

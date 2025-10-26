@@ -139,9 +139,17 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
    - [x] CLI interface with dry-run, verbose, db-path options
    - [x] Three-tier exit codes (0/1/2) for monitoring
    - [x] 20 unit tests passing
-5. [ ] ACT-05: Go Web Server (2-3 days)
+5. [x] ACT-05: Web Server (merged 2025-10-26, commit: c278c62)
+   - [x] Python/FastAPI (pivoted from Go - not available)
+   - [x] HTML listings page with responsive design
+   - [x] RSS feeds (current schedule + daily changes)
+   - [x] Health endpoint (JSON)
+   - [x] Pydantic models and database queries
+   - [x] Manual testing complete
 
-**Timeline**: ~2 weeks (estimated)
+**Timeline**: 2 days (actual - all phases complete 2025-10-26)
+
+**Status**: [x] COMPLETE - All 5 ACT phases merged to main
 
 ## Related Documents
 
