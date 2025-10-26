@@ -1,7 +1,7 @@
 # BFI IMAX Listing Scraper
 
 **Start Date**: 2025-10-24
-**Status**: [x] OBSERVE Complete, [x] ORIENT Complete, [~] ACT Planning
+**Status**: [x] OBSERVE Complete, [x] ORIENT Complete, [~] ACT In Progress
 **Outcome**: Scrape BFI IMAX schedule, maintain daily listings, present via webpage
 
 ## Quick Status
@@ -9,7 +9,7 @@
 - [x] **OBSERVE** Complete (6 audits complete, 2025-10-25)
 - [x] **ORIENT** Complete (6 designs complete, 2025-10-26)
 - [x] **DECIDE** Core decisions validated
-- [~] **ACT** Planning (2025-10-26)
+- [~] **ACT** In Progress (started 2025-10-26)
 
 ## Overview
 
@@ -113,13 +113,16 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
 
 ## ACT Phase [~]
 
-**Status**: Planning (2025-10-26)
+**Status**: In Progress (started 2025-10-26)
 **Goal**: Implement system
 
 **Strategy**: [PLANNING.md](./act/PLANNING.md)
 
 **Implementation Branches** (5 total):
-1. [ ] ACT-01: Database Layer (1-2 days)
+1. [~] ACT-01: Database Layer (started 2025-10-26, branch: act/01-database-layer)
+   - [x] schema.py with 5 tables + 2 views
+   - [x] db.py with Database class (13 operations)
+   - [x] 42 unit tests passing
 2. [ ] ACT-02: Runtime Fetcher (2-3 days)
 3. [ ] ACT-03: Schedule Manager (3-4 days)
 4. [ ] ACT-04: Daily Maintenance (1 day)
