@@ -323,23 +323,23 @@ INSERT INTO schedule_changes (
 
 **Lifecycle**: Permanent (runtimes don't change)
 
+**Updated**: 2025-10-26 (simplified confidence model)
+
 ```sql
 CREATE TABLE movie_runtimes (
     movie_title TEXT PRIMARY KEY,
 
-    -- Runtime
-    runtime_minutes INTEGER NOT NULL,
+    -- Runtime (NULL = unknown, INTEGER = known)
+    runtime_minutes INTEGER,
 
-    -- Source
-    source TEXT NOT NULL,                -- 'BFI', 'Wikipedia', 'IMDb', 'TMDb'
-    source_url TEXT,                     -- URL where runtime was found
+    -- Source (audit only)
+    source TEXT,                         -- 'BFI' or 'Wikipedia'
 
     -- Metadata (UTC with explicit +00:00)
     fetched_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now', 'utc')),
-    confidence TEXT,                     -- 'confirmed', 'estimated', 'uncertain'
 
     -- Validation
-    CHECK (runtime_minutes > 0 AND runtime_minutes < 500)
+    CHECK (runtime_minutes IS NULL OR (runtime_minutes > 0 AND runtime_minutes < 500))
 );
 
 CREATE INDEX idx_runtimes_source ON movie_runtimes(source);
@@ -347,19 +347,25 @@ CREATE INDEX idx_runtimes_source ON movie_runtimes(source);
 
 **Rationale**:
 - Prevents re-fetching runtime for same film
-- `source` tracks where data came from (audit trail)
-- `confidence` enables fallback logic (prefer 'confirmed' over 'estimated')
+- `source` tracks where data came from (audit trail only)
+- NULL runtime_minutes = unknown (retry next time)
+- INTEGER runtime_minutes = known (use for completion detection)
+
+**Design Simplification** (2025-10-26):
+- Removed `confidence` field (NULL vs INTEGER is sufficient)
+- Removed `source_url` field (adds complexity, not needed)
+- Changed `runtime_minutes` to nullable (NULL = unknown)
+- Removed `NOT NULL` constraint (allow NULL for unknown)
+- Only cache successful finds (don't cache failures)
 
 **Sample Record**:
 ```sql
 INSERT INTO movie_runtimes (
-    movie_title, runtime_minutes, source, source_url, confidence, fetched_at
+    movie_title, runtime_minutes, source, fetched_at
 ) VALUES (
     'Frankenstein',
     150,
     'Wikipedia',
-    'https://en.wikipedia.org/wiki/Frankenstein_(2025_film)',
-    'confirmed',
     '2025-10-25T12:30:00+00:00'  -- UTC
 );
 ```

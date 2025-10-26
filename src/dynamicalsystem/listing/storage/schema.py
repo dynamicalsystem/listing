@@ -149,22 +149,21 @@ CREATE INDEX IF NOT EXISTS idx_changes_detected_at ON schedule_changes(detected_
 CREATE INDEX IF NOT EXISTS idx_changes_date_type ON schedule_changes(date, change_type);
 
 -- Table 5: Movie runtimes cache (operational)
+-- Updated 2025-10-26: Simplified - NULL=unknown, INTEGER=known
 CREATE TABLE IF NOT EXISTS movie_runtimes (
     movie_title TEXT PRIMARY KEY,
 
-    -- Runtime
-    runtime_minutes INTEGER NOT NULL,
+    -- Runtime (NULL = unknown, INTEGER = known)
+    runtime_minutes INTEGER,
 
-    -- Source
-    source TEXT NOT NULL,
-    source_url TEXT,
+    -- Source (audit only)
+    source TEXT,
 
     -- Metadata (UTC)
     fetched_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%S+00:00', 'now')),
-    confidence TEXT,
 
     -- Validation
-    CHECK (runtime_minutes > 0 AND runtime_minutes < 500)
+    CHECK (runtime_minutes IS NULL OR (runtime_minutes > 0 AND runtime_minutes < 500))
 );
 
 CREATE INDEX IF NOT EXISTS idx_runtimes_source ON movie_runtimes(source);

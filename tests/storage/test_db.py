@@ -407,16 +407,12 @@ def test_cache_runtime(db):
     db.cache_runtime(
         movie_title='Frankenstein',
         runtime_minutes=150,
-        source='Wikipedia',
-        source_url='https://en.wikipedia.org/wiki/Frankenstein_(2025_film)',
-        confidence='confirmed'
+        source='Wikipedia'
     )
 
     runtime = db.get_runtime('Frankenstein')
     assert runtime is not None
-    assert runtime['runtime_minutes'] == 150
-    assert runtime['source'] == 'Wikipedia'
-    assert runtime['confidence'] == 'confirmed'
+    assert runtime == 150
 
 
 def test_cache_runtime_replace_existing(db):
@@ -435,8 +431,7 @@ def test_cache_runtime_replace_existing(db):
     )
 
     runtime = db.get_runtime('Frankenstein')
-    assert runtime['runtime_minutes'] == 152
-    assert runtime['source'] == 'BFI'
+    assert runtime == 152
 
 
 # -------------------------------------------------------------------------
