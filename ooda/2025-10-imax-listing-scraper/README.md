@@ -123,7 +123,10 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
    - [x] schema.py with 5 tables + 2 views
    - [x] db.py with Database class (13 operations)
    - [x] 42 unit tests passing
-2. [ ] ACT-02: Runtime Fetcher (2-3 days)
+2. [x] ACT-02: Runtime Fetcher (merged 2025-10-26, commit: e1e1329)
+   - [x] runtime.py with Wikipedia-only fetching
+   - [x] Database caching (NULL = unknown, INTEGER = known)
+   - [x] 16 unit tests + manual live testing (100% success)
 3. [ ] ACT-03: Schedule Manager (3-4 days)
 4. [ ] ACT-04: Daily Maintenance (1 day)
 5. [ ] ACT-05: Go Web Server (2-3 days)
