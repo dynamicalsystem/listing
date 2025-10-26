@@ -929,6 +929,45 @@ runtime_minutes INTEGER  -- NULL = unknown, INTEGER = known
 **Impact on schema.py**: Requires update to movie_runtimes table definition
 **Impact on db.py**: Requires update to cache_runtime() and get_runtime() methods
 
+### 5. Wikipedia-Only (No BFI Runtime Fetching)
+
+**Decision**: Remove BFI detail page runtime fetching entirely. Use Wikipedia only.
+
+**Date**: 2025-10-26 (post-implementation testing)
+
+**Evidence from live testing**:
+- BFI detail pages: 0/2 success (403 Forbidden - Cloudflare protection)
+- Wikipedia: 5/5 success (100% success rate)
+- Films tested: Interstellar, Nosferatu, The Dark Knight, Inception
+- All runtimes found successfully from Wikipedia
+
+**Rationale**:
+- BFI requires cloudscraper integration (adds complexity to RuntimeFetcher)
+- BFI often shows "TBC" for upcoming films anyway
+- Wikipedia has excellent coverage for films BFI IMAX shows (major releases, classics)
+- Wikipedia more stable (doesn't block standard requests)
+- Simpler code: only movie title needed (no detail_url_path parameter)
+- One less point of failure
+
+**Trade-offs accepted**:
+- Very new films might not have Wikipedia pages yet
+- But BFI likely shows "TBC" for those anyway, so no real loss
+- We handle missing runtimes gracefully (return None, mark day incomplete, retry later)
+
+**Impact**:
+- Remove `_fetch_from_bfi()` method
+- Remove `detail_url_path` parameter from `get_runtime()`
+- Simpler API: `get_runtime(movie_title)` only
+- Remove BFI-specific tests
+- Update source field to only store 'Wikipedia'
+- No cloudscraper dependency in runtime module
+
+**Simplification wins**:
+- Single source of truth (Wikipedia)
+- No Cloudflare complexity
+- Proven 100% success rate
+- Aligns with design goal: simplicity over completeness
+
 ---
 
 ## Next Steps
