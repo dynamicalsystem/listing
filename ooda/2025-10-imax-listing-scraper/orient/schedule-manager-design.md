@@ -27,8 +27,7 @@
 
 3. **`schedule.py`** - ScheduleManager (orchestrator)
    - Horizon scanning
-   - Simple scraping logic
-   - Batch scraping
+   - Simple scraping logic (single date)
    - Delegates to ChangeDetector and CompletionChecker
 
 **Rationale**:
@@ -71,6 +70,38 @@
 - No near-term vs far-future distinction
 - Database statuses simplified: unknown, partial, complete, empty
 - get_dates_to_scrape() becomes trivial: horizon - complete_dates
+
+### Decision 3: Remove Batch Scraping (2025-10-26)
+
+**Problem**: Original design had `scrape_all_pending()` wrapper that hides the scraping loop inside ScheduleManager.
+
+**Analysis**:
+- `scrape_all_pending()` just wraps: horizon scan → get dates → loop scrape_date()
+- Doesn't add value - just convenience
+- Hides what's actually happening
+- Daily maintenance script should be explicit about its workflow
+
+**Decision**: Remove `scrape_all_pending()`. Daily script does the loop explicitly.
+
+**Daily script becomes:**
+```python
+manager.update_horizon()
+for date in manager.get_dates_to_scrape():
+    result = manager.scrape_date(date)
+    time.sleep(1)  # rate limiting
+```
+
+**Rationale**:
+- More explicit (can see the loop)
+- Daily script controls rate limiting and error handling
+- ScheduleManager provides primitives, not workflows
+- Simpler ScheduleManager interface
+
+**Impact**:
+- Removed `scrape_all_pending()` method
+- Removed `ScrapeRunSummary` data class (not needed)
+- Daily maintenance script handles its own loop and stats
+- ScheduleManager is simpler (3 methods instead of 4)
 
 ---
 
@@ -197,17 +228,6 @@ class ScheduleManager:
         - changes_detected: List[Change]
         - is_complete: bool
         - status: 'empty' | 'partial' | 'complete'
-        """
-
-    def scrape_all_pending(self) -> ScrapeRunSummary:
-        """
-        Scrape all dates that need checking today
-
-        Returns: ScrapeRunSummary with:
-        - dates_scraped: int
-        - changes_detected: int
-        - new_dates_found: int
-        - errors: List[str]
         """
 ```
 
