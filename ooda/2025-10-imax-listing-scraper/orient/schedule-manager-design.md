@@ -7,7 +7,9 @@
 
 ---
 
-## Design Decision: Module Split (2025-10-26)
+## Design Decisions
+
+### Decision 1: Module Split (2025-10-26)
 
 **Problem**: Initial design had single ScheduleManager class doing too much (horizon scanning, priority logic, scraping, change detection, completion detection, batch operations).
 
@@ -25,8 +27,7 @@
 
 3. **`schedule.py`** - ScheduleManager (orchestrator)
    - Horizon scanning
-   - Priority logic (5-tier re-scrape)
-   - Single date scrape workflow
+   - Simple scraping logic
    - Batch scraping
    - Delegates to ChangeDetector and CompletionChecker
 
@@ -41,6 +42,35 @@
 - ChangeDetector and CompletionChecker are reusable
 - Easier to test edge cases in isolation
 - Reduced complexity in each module
+
+### Decision 2: Simplify Re-scrape Logic (2025-10-26)
+
+**Problem**: Original design had 5-tier priority system (unknown, near-term partial, recently changed, far-future partial, empty re-checks). Too complex.
+
+**Analysis**:
+- We run daily anyway, so near-term vs far-future distinction is irrelevant
+- "Recently changed" is premature - we don't have data showing BFI schedules are unstable
+- Empty re-checks redundant - horizon scan catches dates that get showings added
+- Priority tiers don't add value when checking daily
+
+**Decision**: Simple binary logic:
+1. **Horizon scan** → get all dates with showings (from `performanceDays`)
+2. **Filter**: Skip dates marked "complete"
+3. **Scrape everything else**
+4. **Mark complete** when CompletionChecker confirms
+
+**Rationale**:
+- We check daily anyway, so no need for priority tiers
+- Horizon scan automatically discovers new dates
+- "Complete" status is the only meaningful filter
+- Much simpler to implement and understand
+
+**Impact**:
+- Removed 5-tier priority system
+- No weekly re-check logic needed
+- No near-term vs far-future distinction
+- Database statuses simplified: unknown, partial, complete, empty
+- get_dates_to_scrape() becomes trivial: horizon - complete_dates
 
 ---
 
