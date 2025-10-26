@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="listings">
+    {% if showings %}
+        {% for date, date_showings in showings.items() %}
+        <section class="date-section">
+            <h2>{{ date }}</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Film</th>
+                        <th>Format</th>
+                        <th>Rating</th>
+                        <th>Availability</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for showing in date_showings %}
+                    <tr class="showing-row">
+                        <td class="time">{{ showing.showing_time }}</td>
+                        <td class="title">{{ showing.movie_title }}</td>
+                        <td class="format">{{ showing.format_display() }}</td>
+                        <td class="rating">{{ showing.rating or 'N/A' }}</td>
+                        <td class="availability {{ showing.availability_status or 'U' }}">
+                            {{ showing.availability_display() }}
+                            {% if showing.availability_count %}
+                                ({{ showing.availability_count }} seats)
+                            {% endif %}
+                        </td>
+                        <td class="link">
+                            {% if showing.detail_url() %}
+                            <a href="{{ showing.detail_url() }}" target="_blank">Details</a>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        {% endfor %}
+    {% else %}
+        <p class="no-listings">No upcoming showings found.</p>
+    {% endif %}
+</div>
+{% endblock %}

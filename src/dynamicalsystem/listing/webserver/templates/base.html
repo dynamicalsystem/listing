@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}BFI IMAX Listings{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="alternate" type="application/rss+xml" title="Current Schedule" href="/rss/current">
+    <link rel="alternate" type="application/rss+xml" title="Daily Changes" href="/rss/daily">
+</head>
+<body>
+    <header>
+        <h1>BFI IMAX Listings</h1>
+        <nav>
+            <a href="/">Home</a>
+            <a href="/rss/current">RSS (Current)</a>
+            <a href="/rss/daily">RSS (Changes)</a>
+            <a href="/health">Health</a>
+        </nav>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <p>Data scraped from <a href="https://whatson.bfi.org.uk/imax/" target="_blank">BFI IMAX</a></p>
+        <p>Updated daily at 02:00 UTC</p>
+        <p><a href="https://github.com/anthropics/claude-code" target="_blank">Built with Claude Code</a></p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,222 @@
+/* BFI IMAX Listings - CSS Styling */
+
+:root {
+    --primary-color: #1a1a1a;
+    --secondary-color: #e50914;
+    --background: #ffffff;
+    --text: #1a1a1a;
+    --border: #dddddd;
+    --good: #28a745;
+    --limited: #ffc107;
+    --sold-out: #dc3545;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--text);
+    background: var(--background);
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+header {
+    border-bottom: 2px solid var(--secondary-color);
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+}
+
+header h1 {
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+nav {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+nav a {
+    color: var(--primary-color);
+    text-decoration: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+}
+
+nav a:hover {
+    background: var(--border);
+}
+
+.date-section {
+    margin-bottom: 2rem;
+}
+
+.date-section h2 {
+    color: var(--primary-color);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+}
+
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+th {
+    background: var(--primary-color);
+    color: white;
+    font-weight: 600;
+}
+
+tr:hover {
+    background: #f8f9fa;
+}
+
+.time {
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.title {
+    font-weight: 500;
+}
+
+.format {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.availability.G {
+    color: var(--good);
+    font-weight: 600;
+}
+
+.availability.L {
+    color: var(--limited);
+    font-weight: 600;
+}
+
+.availability.S {
+    color: var(--sold-out);
+    font-weight: 600;
+}
+
+.link a {
+    color: var(--secondary-color);
+    text-decoration: none;
+}
+
+.link a:hover {
+    text-decoration: underline;
+}
+
+.no-listings {
+    text-align: center;
+    padding: 3rem;
+    color: #666;
+    font-size: 1.1rem;
+}
+
+.error {
+    text-align: center;
+    padding: 3rem;
+}
+
+.error h2 {
+    color: var(--secondary-color);
+    margin-bottom: 1rem;
+}
+
+footer {
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: 3rem;
+    text-align: center;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+footer p {
+    margin: 0.25rem 0;
+}
+
+footer a {
+    color: var(--secondary-color);
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    body {
+        padding: 0.5rem;
+    }
+
+    table {
+        font-size: 0.9rem;
+    }
+
+    th, td {
+        padding: 0.5rem 0.25rem;
+    }
+
+    /* Stack table on mobile */
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+
+    thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    tr {
+        border: 1px solid var(--border);
+        margin-bottom: 1rem;
+        padding: 0.5rem;
+    }
+
+    td {
+        border: none;
+        position: relative;
+        padding-left: 50%;
+        min-height: 30px;
+    }
+
+    td:before {
+        position: absolute;
+        left: 0.5rem;
+        width: 45%;
+        padding-right: 0.5rem;
+        white-space: nowrap;
+        font-weight: 600;
+        content: attr(data-label);
+    }
+
+    .time:before { content: "Time: "; }
+    .title:before { content: "Film: "; }
+    .format:before { content: "Format: "; }
+    .rating:before { content: "Rating: "; }
+    .availability:before { content: "Availability: "; }
+    .link:before { content: "Link: "; }
+}
