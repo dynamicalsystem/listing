@@ -127,7 +127,12 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
    - [x] runtime.py with Wikipedia-only fetching
    - [x] Database caching (NULL = unknown, INTEGER = known)
    - [x] 16 unit tests + manual live testing (100% success)
-3. [ ] ACT-03: Schedule Manager (3-4 days)
+3. [x] ACT-03: Schedule Manager (merged 2025-10-26, commit: f5eeb77)
+   - [x] changes.py - ChangeDetector with hash-based snapshot comparison
+   - [x] completion.py - CompletionChecker with runtime-based gap analysis
+   - [x] schedule.py - ScheduleManager orchestrator
+   - [x] 31 unit + integration tests passing
+   - [x] Simplified re-scrape logic (binary filter vs 5-tier priority)
 4. [ ] ACT-04: Daily Maintenance (1 day)
 5. [ ] ACT-05: Go Web Server (2-3 days)
 
