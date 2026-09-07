@@ -226,8 +226,9 @@ def run_daily_maintenance(dry_run: bool = False) -> ScrapeRunSummary:
     # 4. Cleanup old data
     try:
         logger.info("Cleaning up old data...")
-        deleted_listings = db.delete_old_listings()
-        deleted_snapshots = db.delete_old_snapshots()
+        today = datetime.now(ZoneInfo("UTC")).date().isoformat()
+        deleted_listings = db.delete_old_listings(today)
+        deleted_snapshots = db.prune_old_snapshots()
         logger.info(f"Cleanup complete: {deleted_listings} old listings, "
                    f"{deleted_snapshots} old snapshots deleted")
     except Exception as e:

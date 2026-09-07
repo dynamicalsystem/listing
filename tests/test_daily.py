@@ -308,7 +308,7 @@ class TestRunDailyMaintenance:
         # Mock database cleanup
         db_instance = MagicMock()
         db_instance.delete_old_listings.return_value = 10
-        db_instance.delete_old_snapshots.return_value = 5
+        db_instance.prune_old_snapshots.return_value = 5
         mock_db.return_value = db_instance
 
         # Run
@@ -323,9 +323,10 @@ class TestRunDailyMaintenance:
         # Verify scrape was called
         manager.scrape_date.assert_called_once_with('2025-10-26')
 
-        # Verify cleanup was called
-        db_instance.delete_old_listings.assert_called_once()
-        db_instance.delete_old_snapshots.assert_called_once()
+        # Verify cleanup was called with today's date as the cutoff
+        today = datetime.now(ZoneInfo("UTC")).date().isoformat()
+        db_instance.delete_old_listings.assert_called_once_with(today)
+        db_instance.prune_old_snapshots.assert_called_once()
 
     @patch('dynamicalsystem.listing.maintenance.daily.Database')
     @patch('dynamicalsystem.listing.maintenance.daily.BFIFetcher')
@@ -349,7 +350,7 @@ class TestRunDailyMaintenance:
 
         db_instance = MagicMock()
         db_instance.delete_old_listings.return_value = 0
-        db_instance.delete_old_snapshots.return_value = 0
+        db_instance.prune_old_snapshots.return_value = 0
         mock_db.return_value = db_instance
 
         # Run
@@ -388,7 +389,7 @@ class TestRunDailyMaintenance:
 
         db_instance = MagicMock()
         db_instance.delete_old_listings.return_value = 0
-        db_instance.delete_old_snapshots.return_value = 0
+        db_instance.prune_old_snapshots.return_value = 0
         mock_db.return_value = db_instance
 
         # Run
