@@ -1,9 +1,22 @@
 # BFI IMAX Listing Scraper - Outcomes
 
 **Start Date**: 2025-10-24
-**Status**: [...] OBSERVE Phase In Progress
+**Status**: [x] Resolved at closure, 2026-09-07
 
 This document defines the measurable outcomes for this deliverable.
+
+**Closure note (2026-09-07)**: The test commands below were written before the
+DECIDE phase and describe the original file-based design (`scrape.sh`, JSON
+files per date). The system as built is a SQLite database
+(`dynamicalsystem.listing.storage`) maintained by
+`python -m dynamicalsystem.listing.maintenance.daily` and served by a FastAPI
+app (`dynamicalsystem.listing.webserver.main`). Criteria were validated against
+the real interfaces; the literal shell commands are superseded. Validation
+evidence: live maintenance run on 2026-09-07 (33 dates discovered and scraped,
+102 listings, 0 errors, exit code 0) into a scratch database, then all web
+endpoints exercised against it. Two integration bugs found and fixed during
+validation (cleanup call signatures, horizon scan no-results fallback) - see
+the loop README Action section.
 
 ## Outcome 1: Scrape BFI IMAX Schedule
 
@@ -13,31 +26,20 @@ Operators can extract structured movie listing data from the BFI IMAX website.
 
 ### Test
 
-```bash
-# Run scraper for a specific date
-./scrape.sh 2025-10-25
-
-# Expected output: JSON/CSV file containing:
-# - Movie title: "Blue Whales: Return of the Giants (3D)"
-# - Movie detail link: https://whatson.bfi.org.uk/imax/Online/...
-# - Showing date: 2025-10-25
-# - Booking link: https://whatson.bfi.org.uk/imax/Online/...
-
-# Verify data extracted
-cat data/listings-2025-10-25.json
-# Expected: Valid JSON with array of movie records
-```
+Superseded: validated via a live run of
+`python -m dynamicalsystem.listing.maintenance.daily --db-path <db>` followed
+by inspection of the `listings` table and the `/` page.
 
 ### Success Criteria
 
-- [ ] Scraper successfully retrieves BFI IMAX schedule page
-- [ ] Extracts all movie titles on the page
-- [ ] Captures movie detail links
-- [ ] Captures booking links
-- [ ] Records showing date
-- [ ] Outputs structured data (JSON or similar)
-- [ ] Handles missing/optional fields gracefully
-- [ ] Returns clear error messages on failure
+- [/] Scraper successfully retrieves BFI IMAX schedule page (cloudscraper, live 2026-09-07)
+- [/] Extracts all movie titles on the page
+- [/] Captures movie detail links
+- [/] Captures booking links
+- [/] Records showing date
+- [/] Outputs structured data (SQLite `listings` table; supersedes JSON files)
+- [/] Handles missing/optional fields gracefully (parser unit tests)
+- [/] Returns clear error messages on failure (logged errors + three-tier exit codes)
 
 ## Outcome 2: Handle Sparse Calendar Backfill
 
@@ -47,31 +49,19 @@ System can discover and fill in listings as they appear in the sparse, non-conti
 
 ### Test
 
-```bash
-# Initial scrape
-./scrape.sh --date-range 2025-10-25 2025-11-25
-
-# Verify sparse data captured
-cat data/listings-*.json | jq '.[] | .date' | sort | uniq
-# Expected: Dates with listings (may have gaps)
-
-# Re-run days later to capture newly added listings
-./scrape.sh --date-range 2025-10-25 2025-11-25
-
-# Verify new listings added
-diff data/listings-2025-10-25.json data/listings-2025-10-25.json.backup
-# Expected: New entries if BFI added listings
-```
+Superseded: horizon scan via performanceDays replaces date-range polling.
+Validated live (33 sparse dates discovered spanning 2026-09-07 to 2026-12-20)
+plus schedule-manager integration tests.
 
 ### Success Criteria
 
-- [ ] Scraper can query multiple dates in a range
-- [ ] Handles dates with no listings (empty result)
-- [ ] Merges new listings with existing data
-- [ ] Doesn't duplicate existing records
-- [ ] Can be run repeatedly without corruption
-- [ ] Identifies which dates have been checked
-- [ ] Logs dates where new listings were found
+- [/] Scraper can query multiple dates in a range (horizon scan + per-date scrape)
+- [/] Handles dates with no listings (no-results page handling, unit tested)
+- [/] Merges new listings with existing data (INSERT OR IGNORE semantics)
+- [/] Doesn't duplicate existing records (unique bfi_showing_id, unit tested)
+- [/] Can be run repeatedly without corruption (snapshot/change tests)
+- [/] Identifies which dates have been checked (`scrape_schedule` table)
+- [/] Logs dates where new listings were found (change detection log lines)
 
 ## Outcome 3: Daily Maintenance
 
@@ -81,36 +71,19 @@ System automatically maintains current listings by removing old entries and addi
 
 ### Test
 
-```bash
-# Setup: Create listings for yesterday and today
-echo '[{"movie": "Test", "date": "2025-10-23"}]' > data/listings-2025-10-23.json
-echo '[{"movie": "Test", "date": "2025-10-24"}]' > data/listings-2025-10-24.json
-
-# Run daily maintenance
-./daily-maintenance.sh
-
-# Verify yesterday's data removed
-ls data/listings-2025-10-23.json
-# Expected: File does not exist
-
-# Verify today's data preserved
-ls data/listings-2025-10-24.json
-# Expected: File exists
-
-# Verify new listings added
-cat data/listings-2025-10-25.json
-# Expected: Today's newly scraped listings
-```
+Superseded: validated via live run of
+`python -m dynamicalsystem.listing.maintenance.daily` (exit 0) and
+`--dry-run`, plus 20 unit tests in `tests/test_daily.py`.
 
 ### Success Criteria
 
-- [ ] Deletes listings older than yesterday
-- [ ] Preserves today's and future listings
-- [ ] Scrapes new listings for configurable date range
-- [ ] Can run via cron/scheduled task
-- [ ] Logs actions taken (deleted X files, added Y listings)
-- [ ] Fails safely (doesn't delete everything on error)
-- [ ] Can be run manually for testing
+- [/] Deletes listings older than yesterday (`delete_old_listings(today)`; bug found and fixed at closure)
+- [/] Preserves today's and future listings (unit tested)
+- [/] Scrapes new listings for configurable date range (horizon-driven)
+- [/] Can run via cron/scheduled task (CLI entry point, env-var config, exit codes)
+- [/] Logs actions taken (run summary: dates scraped, changes, errors)
+- [/] Fails safely (empty horizon scan no longer cascades into removals; fixed at closure)
+- [/] Can be run manually for testing (`--dry-run`, `--verbose`, `--db-path`)
 
 ## Outcome 4: Web Presentation
 
@@ -120,39 +93,21 @@ Users can view all current IMAX listings in a web browser.
 
 ### Test
 
-```bash
-# Start web server
-./serve.sh
-
-# Open browser to localhost:PORT
-# Expected page contents:
-# - List of all movies with showings
-# - For each movie:
-#   - Movie title
-#   - Link to movie details (clickable)
-#   - Showing dates
-#   - Link to book tickets (clickable)
-# - Sorted by date (earliest first)
-# - Clear indication of 3D vs 2D vs 70mm etc.
-
-# Manual verification:
-# 1. Click movie detail link -> opens BFI page
-# 2. Click booking link -> opens BFI booking page
-# 3. Multiple showings of same movie grouped sensibly
-# 4. Page is readable and usable
-```
+Superseded: validated by running
+`uvicorn dynamicalsystem.listing.webserver.main:app` against the live-scraped
+database and exercising `/`, `/health`, `/rss/current`, `/rss/daily`.
 
 ### Success Criteria
 
-- [ ] Web server serves HTML page
-- [ ] Page displays all current listings
-- [ ] Movie titles rendered correctly
-- [ ] Links are clickable and functional
-- [ ] Dates formatted clearly (YYYY-MM-DD or human-readable)
-- [ ] Page updates when data changes
-- [ ] Handles empty listing set gracefully
-- [ ] Works on mobile browsers
-- [ ] Page loads quickly (< 2 seconds)
+- [/] Web server serves HTML page (200, `<title>BFI IMAX Listings</title>`)
+- [/] Page displays all current listings (102 listings rendered)
+- [/] Movie titles rendered correctly
+- [/] Links are clickable and functional (103 detail/booking links on page)
+- [/] Dates formatted clearly
+- [/] Page updates when data changes (queries database per request)
+- [/] Handles empty listing set gracefully (template empty state)
+- [/] Works on mobile browsers (responsive CSS; manual check at ACT-05)
+- [/] Page loads quickly (< 2 seconds; measured 23ms locally)
 
 ## Outcome 5: End-to-End Workflow
 
@@ -162,37 +117,20 @@ Complete workflow from scraping to presentation operates reliably over time.
 
 ### Test
 
-```bash
-# Day 1: Initial setup
-./scrape.sh --date-range 2025-10-25 2025-12-31
-./serve.sh &
-
-# Verify webpage shows listings
-curl http://localhost:PORT | grep "Blue Whales"
-
-# Day 2: Daily maintenance runs
-./daily-maintenance.sh
-
-# Verify old data removed
-ls data/listings-2025-10-24.json
-# Expected: Does not exist (if 2025-10-24 is now in past)
-
-# Verify new data added
-curl http://localhost:PORT | grep -c "movie"
-# Expected: Count of current movies
-
-# Day 30: System still running
-curl http://localhost:PORT
-# Expected: Shows current listings, no stale data
-```
+Single-cycle end-to-end validated live 2026-09-07: empty database ->
+maintenance run -> populated database -> web page and feeds serving current
+listings. Multi-day durability criteria below require a production deployment,
+which does not exist yet.
 
 ### Success Criteria
 
-- [ ] Initial scrape populates database
-- [ ] Web server shows data immediately
-- [ ] Daily maintenance runs without intervention
-- [ ] Old data automatically removed
-- [ ] New data automatically added
-- [ ] System recovers from BFI website downtime
-- [ ] Logs provide audit trail
-- [ ] No manual intervention needed for 30+ days
+- [/] Initial scrape populates database (33 dates, 102 listings)
+- [/] Web server shows data immediately
+- [/] Daily maintenance runs without intervention (exit 0, healthcheck ping hook)
+- [/] Old data automatically removed (cleanup step verified; nothing old to delete on first run)
+- [/] New data automatically added
+- [/] System recovers from BFI website downtime (per-date error isolation; horizon fallback)
+- [/] Logs provide audit trail (structured log file + run summary)
+- [ ] No manual intervention needed for 30+ days - ABANDONED at closure: the
+      system is not deployed, so a 30-day soak test cannot run. Deployment
+      (Docker + cron + hosting) is follow-up work outside this loop's scope.

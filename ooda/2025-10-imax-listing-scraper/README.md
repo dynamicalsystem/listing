@@ -1,7 +1,7 @@
-# BFI IMAX Listing Scraper
+# [ARCHIVED] BFI IMAX Listing Scraper
 
 **Start Date**: 2025-10-24
-**Status**: [x] OBSERVE Complete, [x] ORIENT Complete, [~] ACT In Progress
+**Status**: [x] Closed 2026-09-07 - see [archived.md](./archived.md)
 **Outcome**: Scrape BFI IMAX schedule, maintain daily listings, present via webpage
 
 ## Quick Status
@@ -150,6 +150,25 @@ See [decision.md](./decision.md) for full rationale and trade-offs.
 **Timeline**: 2 days (actual - all phases complete 2025-10-26)
 
 **Status**: [x] COMPLETE - All 5 ACT phases merged to main
+
+**Closure validation (2026-09-07)**: Outcome tests were resolved against the
+real system before archiving. Two rounds of fixes were required, both merged
+to main:
+
+1. `fix/date-brittle-tests` (346f477): test fixtures hardcoded October 2025
+   dates, which fell behind `date('now')` filtering once those dates passed;
+   fixtures are now relative to the test run date.
+2. `fix/daily-maintenance-integration` (a8c4a8b): the cleanup step called
+   `Database.delete_old_listings()` without its required cutoff argument and a
+   nonexistent `delete_old_snapshots` method (masked by MagicMock in unit
+   tests); and the horizon scan fetched today's page only, which late in the
+   day is a no-results page without `performanceDays`, yielding 0 dates. It
+   now falls back to tomorrow's page and treats an empty scan as a failure
+   rather than marking all tracked dates removed.
+
+Final validation: live maintenance run (33 dates, 102 listings, 0 errors,
+exit 0) and all web endpoints exercised against the resulting database.
+See [outcomes.md](./outcomes.md) for per-criterion resolution.
 
 ## Related Documents
 
