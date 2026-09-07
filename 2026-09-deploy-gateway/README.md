@@ -125,6 +125,19 @@ Done 2026-09-07:
 - tinsnip 68585c3 (pushed to main): hosts/gateway/listing.container,
   listing-maintain.container, listing-maintain.timer,
   config/listing.env.example, fleet list update.
+- On-box deployment (2026-09-07, via SSH): tinsnip pulled, install.sh re-run,
+  state dir + listing.env created (SITE_URL=https://listing.dynamicalsystem.com
+  - wildcard DNS already points *.dynamicalsystem.com at the box),
+  /etc/caddy/conf.d/listing.caddy added (festers pattern), caddy reloaded,
+  listing.service started (health gate passed), listing-maintain.timer
+  enabled. Public HTTPS route verified.
+- Experiment: first on-box maintenance run failed - Cloudflare 403s EVERY
+  cloudscraper browser profile from the box (OCI datacenter IP range gets
+  stricter rules than residential; the firefox-profile fix only helped from
+  residential IPs). curl_cffi TLS impersonation passes from the box with
+  chrome/firefox/safari profiles. Fetcher swapped to curl_cffi
+  (listing 12a72d3, merged aee3338); verified live from the box before the
+  code change, and in a local container after it.
 
 Blocked / remaining:
 
