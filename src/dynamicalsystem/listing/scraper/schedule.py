@@ -13,7 +13,7 @@ Design: Simplified from original 5-tier priority to binary filter
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import List, Optional, Set
 
 from dynamicalsystem.listing.scraper.changes import Change, ChangeDetector, compute_snapshot_hash
@@ -120,20 +120,32 @@ class ScheduleManager:
         """
         logger.info("Starting horizon scan")
 
-        # Fetch today's page to get performanceDays
-        today = datetime.now(UTC).date().isoformat()
-        html = self.fetcher.fetch(today)
+        # Fetch today's page to get performanceDays. Late in the day (or when
+        # today has no showings) BFI serves a no-results page without the
+        # performanceDays array, so fall back to tomorrow's page.
+        today = datetime.now(UTC).date()
+        dates_with_showings = set()
+        for offset in (0, 1):
+            fetch_date = (today + timedelta(days=offset)).isoformat()
+            html = self.fetcher.fetch(fetch_date)
+            if not html:
+                logger.error(f"Horizon scan: could not fetch page for {fetch_date}")
+                continue
+            dates_with_showings = extract_performance_days(html)
+            if dates_with_showings:
+                break
+            logger.warning(f"No performanceDays on page for {fetch_date}")
 
-        if not html:
-            logger.error("Horizon scan failed: could not fetch page")
+        if not dates_with_showings:
+            # A genuinely empty horizon is implausible; treat as a failed scan
+            # rather than marking every tracked date as removed.
+            logger.error("Horizon scan failed: no dates found; skipping removal checks")
             return HorizonScanResult(
                 dates_discovered=set(),
                 new_dates=set(),
                 removed_dates=set()
             )
 
-        # Extract all dates with showings
-        dates_with_showings = extract_performance_days(html)
         logger.info(f"Horizon scan found {len(dates_with_showings)} dates with showings")
 
         # Get current dates in scrape_schedule

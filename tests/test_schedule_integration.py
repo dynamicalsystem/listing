@@ -222,6 +222,44 @@ class TestHorizonScanning:
 
         assert '2025-11-01' in result.removed_dates
 
+    def test_horizon_scan_falls_back_to_tomorrow(self, manager, mock_fetcher):
+        """Test fallback when today's page has no performanceDays.
+
+        Late in the day BFI serves a no-results page for today without the
+        performanceDays array; the scan should retry with tomorrow's date.
+        """
+        no_results_page = '<html><body>No results</body></html>'
+        good_page = create_html_with_performance_days(['2025-10-26', '2025-10-28'])
+        mock_fetcher.fetch.side_effect = [no_results_page, good_page]
+
+        result = manager.update_horizon()
+
+        assert mock_fetcher.fetch.call_count == 2
+        assert len(result.dates_discovered) == 2
+
+    def test_horizon_scan_empty_skips_removal(self, manager, mock_fetcher, db):
+        """Test an empty scan does not mark tracked dates as removed."""
+        # Track a date as partial
+        mock_fetcher.fetch.return_value = create_html_with_performance_days([
+            '2025-11-01'
+        ])
+        manager.update_horizon()
+        db.update_scrape_schedule(
+            date='2025-11-01',
+            status='partial',
+            showing_count=1,
+            is_complete=False
+        )
+
+        # Both today's and tomorrow's fetch return no performanceDays
+        mock_fetcher.fetch.side_effect = None
+        mock_fetcher.fetch.return_value = '<html><body>No results</body></html>'
+
+        result = manager.update_horizon()
+
+        assert result.dates_discovered == set()
+        assert result.removed_dates == set()
+
 
 class TestDateScraping:
     """Test scraping individual dates."""
