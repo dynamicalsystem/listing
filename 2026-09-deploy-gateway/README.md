@@ -143,13 +143,13 @@ Blocked / remaining:
 
 - [x] Push listing main to GitHub (done 2026-09-07 after Simon refreshed
       the gh token with the workflow scope; first GHCR build succeeded).
-- [ ] On-box (Simon): create /home/ubuntu/listing/deploy/listing.env from
-      config/listing.env.example; mkdir -p
-      ~/.local/state/dynamicalsystem/listing; git pull tinsnip; re-run
-      install.sh (or symlink the new units); systemctl --user daemon-reload;
-      enable/start listing.container and listing-maintain.timer.
-- [ ] Choose the public hostname: DNS record, caddy route on the box
-      (/etc/caddy/Caddyfile), and SITE_URL in listing.env to match.
+- [x] On-box deployment (done 2026-09-07 via SSH; Simon authorized): env
+      file, state dir, install.sh, units started, timer enabled.
+- [x] Public hostname: listing.dynamicalsystem.com (wildcard DNS already on
+      the box; /etc/caddy/conf.d/listing.caddy added, SITE_URL set).
+- [ ] Confirm the first scheduled timer firing (2026-09-08 02:00
+      Europe/London) exits 0, then close this loop - which fires the backlog
+      trigger for the 30-day soak test.
 
 ## Outcomes
 
@@ -165,8 +165,13 @@ Tests:
 ### Outcome 2: Gateway box serves the listings site unattended
 
 Tests:
-- [ ] listing.container starts on the box, passes its /health gate, and is
-      reachable via caddy at the chosen hostname
+- [/] listing.container starts on the box, passes its /health gate, and is
+      reachable via caddy at https://listing.dynamicalsystem.com (verified
+      2026-09-07: healthy, 102 listings, page 200 in 161ms, RSS valid)
 - [ ] listing-maintain.timer fires at 02:00 Europe/London and the sweep exits 0
-- [ ] podman auto-update swaps in a new image after a main merge with no
-      manual steps beyond the merge
+      (sweep verified exit 0 on the box via manual start 2026-09-07; awaiting
+      the first scheduled firing on 2026-09-08)
+- [/] podman auto-update swaps in a new image after a main merge with no
+      manual steps beyond the merge (verified 2026-09-07: the curl_cffi merge
+      was pulled and health-gate swapped by podman-auto-update.timer
+      unattended)
