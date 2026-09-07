@@ -46,20 +46,18 @@ async def listings_page(request: Request):
         grouped_showings = {date: grouped[date] for date in sorted_dates}
 
         return templates.TemplateResponse(
+            request,
             "listings.html",
             {
-                "request": request,
                 "title": "BFI IMAX Listings",
                 "showings": grouped_showings
             }
         )
     except Exception as e:
         return templates.TemplateResponse(
+            request,
             "error.html",
-            {
-                "request": request,
-                "error": str(e)
-            },
+            {"error": str(e)},
             status_code=500
         )
 
