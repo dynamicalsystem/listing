@@ -1,12 +1,17 @@
 """Tests for db.py - database access layer."""
 
 import tempfile
-from datetime import datetime
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
 
 from dynamicalsystem.listing.storage.db import Database
+
+# The upcoming_showings view filters on showing_date >= date('now'),
+# so fixture dates must be relative to the test run date.
+FUTURE_DATE = (date.today() + timedelta(days=7)).isoformat()
+PAST_DATE = (date.today() - timedelta(days=7)).isoformat()
 
 
 @pytest.fixture
@@ -33,10 +38,10 @@ def sample_showing():
         'movie_title': 'Frankenstein',
         'movie_slug': 'frank_26oct25',
         'rating': '15',
-        'showing_date': '2025-10-26',
+        'showing_date': FUTURE_DATE,
         'showing_time': '10:45',
-        'showing_datetime_utc': '2025-10-26T09:45:00+00:00',
-        'showing_datetime_display': 'Sunday 26 October 2025 10:45',
+        'showing_datetime_utc': f'{FUTURE_DATE}T09:45:00+00:00',
+        'showing_datetime_display': f'{FUTURE_DATE} 10:45',
         'format_keywords': 'IMAX with Laser',
         'is_laser': True,
         'detail_url_path': 'default.asp?...',
@@ -65,7 +70,7 @@ def test_insert_showings_multiple(db, sample_showing):
     showing2 = sample_showing.copy()
     showing2['bfi_showing_id'] = 'DEF456'
     showing2['showing_time'] = '14:30'
-    showing2['showing_datetime_utc'] = '2025-10-26T13:30:00+00:00'
+    showing2['showing_datetime_utc'] = f'{FUTURE_DATE}T13:30:00+00:00'
 
     inserted = db.insert_showings([sample_showing, showing2])
     assert inserted == 2
@@ -137,22 +142,22 @@ def test_delete_old_listings(db, sample_showing):
     """Test delete_old_listings."""
     # Insert old and new showings
     old_showing = sample_showing.copy()
-    old_showing['showing_date'] = '2025-10-20'
+    old_showing['showing_date'] = PAST_DATE
 
     new_showing = sample_showing.copy()
     new_showing['bfi_showing_id'] = 'NEW123'
-    new_showing['showing_date'] = '2025-10-28'
+    new_showing['showing_date'] = FUTURE_DATE
 
     db.insert_showings([old_showing, new_showing])
 
     # Delete old
-    deleted = db.delete_old_listings('2025-10-25')
+    deleted = db.delete_old_listings(date.today().isoformat())
     assert deleted == 1
 
     # Verify only new remains
     showings = db.get_upcoming_showings()
     assert len(showings) == 1
-    assert showings[0]['showing_date'] == '2025-10-28'
+    assert showings[0]['showing_date'] == FUTURE_DATE
 
 
 # -------------------------------------------------------------------------
@@ -451,5 +456,5 @@ def test_get_health_info_with_data(db, sample_showing):
 
     info = db.get_health_info()
     assert info['listings_count'] == 1
-    assert info['oldest_listing'] == '2025-10-26'
-    assert info['newest_listing'] == '2025-10-26'
+    assert info['oldest_listing'] == FUTURE_DATE
+    assert info['newest_listing'] == FUTURE_DATE
