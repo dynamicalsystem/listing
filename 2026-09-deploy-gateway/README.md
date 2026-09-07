@@ -106,12 +106,40 @@ pattern is proven on the same box.
 
 ## Action
 
+Done 2026-09-07:
+
 - Repo migrated to ~/work/listing/{main,ooda}; ooda orphan branch created,
-  in-tree ooda/ removed from main; pushed to dynamicalsystem/listing.
-- listing branch deploy/containerise: dockerfile, .github/workflows/
-  release.yml, .github/workflows/tests.yml, pytest testpaths pin.
-- tinsnip (direct to main): listing Quadlet units, env example, README fleet
-  update.
+  in-tree ooda/ removed from main; repo created at dynamicalsystem/listing
+  (public) and both branches pushed.
+- listing branch deploy/containerise (fc9d0a5, merged): dockerfile,
+  release.yml, tests.yml, pytest testpaths pin, plus two bugs the container
+  smoke test surfaced:
+  - starlette 1.x (image) removed the legacy TemplateResponse signature the
+    webserver used; calls updated to the modern request-first form.
+  - Cloudflare 403s cloudscraper's chrome profile from a Linux container
+    (TLS fingerprint mismatch) while macOS passes; the firefox/linux profile
+    passes from both. Without the container smoke test this would have
+    shipped a box that could serve but never scrape.
+  - Verified in-container: maintenance dry-run exit 0 (33 dates), /,
+    /health, /rss/current all serving.
+- tinsnip 68585c3 (pushed to main): hosts/gateway/listing.container,
+  listing-maintain.container, listing-maintain.timer,
+  config/listing.env.example, fleet list update.
+
+Blocked / remaining:
+
+- [ ] Push listing main to GitHub: the gh OAuth token lacks the `workflow`
+      scope, so the push carrying .github/workflows/ was rejected. Needs
+      `gh auth refresh -s workflow` (interactive) or a push from a shell
+      with the SSH agent loaded. First push to main triggers the first
+      GHCR image build.
+- [ ] On-box (Simon): create /home/ubuntu/listing/deploy/listing.env from
+      config/listing.env.example; mkdir -p
+      ~/.local/state/dynamicalsystem/listing; git pull tinsnip; re-run
+      install.sh (or symlink the new units); systemctl --user daemon-reload;
+      enable/start listing.container and listing-maintain.timer.
+- [ ] Choose the public hostname: DNS record, caddy route on the box
+      (/etc/caddy/Caddyfile), and SITE_URL in listing.env to match.
 
 ## Outcomes
 
