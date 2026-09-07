@@ -448,13 +448,18 @@ class TestFullWorkflow:
 
     def test_daily_workflow_simulation(self, manager, mock_fetcher, db):
         """Simulate a daily scraping workflow."""
+        # upcoming_showings filters on date('now'), so use dates relative to today
+        from datetime import date, timedelta
+        date_a = (date.today() + timedelta(days=7)).isoformat()
+        date_b = (date.today() + timedelta(days=9)).isoformat()
+
         # Cache some runtimes
         db.cache_runtime('Film A', 120, 'test')
         db.cache_runtime('Film B', 120, 'test')
 
         # Step 1: Horizon scan
         mock_fetcher.fetch.return_value = create_html_with_performance_days([
-            '2025-10-26', '2025-10-28'
+            date_a, date_b
         ])
         horizon_result = manager.update_horizon()
 
@@ -465,16 +470,16 @@ class TestFullWorkflow:
         assert len(dates_to_scrape) == 2
 
         # Step 3: Scrape each date
-        showings_oct26 = [
+        showings_date_a = [
             {
                 'bfi_showing_id': '1',
                 'movie_title': 'Film A',
                 'movie_slug': 'film-a',
                 'rating': 'PG',
-                'showing_date': '2025-10-26',
+                'showing_date': date_a,
                 'showing_time': '10:00',
-                'showing_datetime_utc': '2025-10-26T09:00:00+00:00',
-                'showing_datetime_display': 'Sat 26 Oct 10:00',
+                'showing_datetime_utc': f'{date_a}T09:00:00+00:00',
+                'showing_datetime_display': f'{date_a} 10:00',
                 'format_keywords': 'IMAX',
                 'detail_url_path': 'detail.asp?id=1',
                 'availability_status': 'G',
@@ -482,16 +487,16 @@ class TestFullWorkflow:
             },
         ]
 
-        showings_oct28 = [
+        showings_date_b = [
             {
                 'bfi_showing_id': '2',
                 'movie_title': 'Film B',
                 'movie_slug': 'film-b',
                 'rating': '12A',
-                'showing_date': '2025-10-28',
+                'showing_date': date_b,
                 'showing_time': '14:00',
-                'showing_datetime_utc': '2025-10-28T13:00:00+00:00',
-                'showing_datetime_display': 'Mon 28 Oct 14:00',
+                'showing_datetime_utc': f'{date_b}T13:00:00+00:00',
+                'showing_datetime_display': f'{date_b} 14:00',
                 'format_keywords': '3D',
                 'detail_url_path': 'detail.asp?id=2',
                 'availability_status': 'G',
@@ -499,12 +504,12 @@ class TestFullWorkflow:
             },
         ]
 
-        def fetch_by_date(date):
-            if date == '2025-10-26':
-                return create_html_with_showings(showings_oct26)
-            elif date == '2025-10-28':
-                return create_html_with_showings(showings_oct28)
-            return create_html_with_performance_days(['2025-10-26', '2025-10-28'])
+        def fetch_by_date(fetch_date):
+            if fetch_date == date_a:
+                return create_html_with_showings(showings_date_a)
+            elif fetch_date == date_b:
+                return create_html_with_showings(showings_date_b)
+            return create_html_with_performance_days([date_a, date_b])
 
         mock_fetcher.fetch.side_effect = fetch_by_date
 
@@ -517,9 +522,9 @@ class TestFullWorkflow:
         assert all(r.showing_count >= 1 for r in results)
 
         # Verify database state
-        schedule_status_26 = db.get_schedule_status('2025-10-26')
-        assert schedule_status_26 is not None
-        assert schedule_status_26['status'] in ['partial', 'complete']
+        schedule_status_a = db.get_schedule_status(date_a)
+        assert schedule_status_a is not None
+        assert schedule_status_a['status'] in ['partial', 'complete']
 
         # Verify listings in database
         upcoming = db.get_upcoming_showings()
