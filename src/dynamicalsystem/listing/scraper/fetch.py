@@ -2,7 +2,7 @@
 
 from typing import Optional
 from urllib.parse import urlencode
-import cloudscraper
+from curl_cffi import requests as curl_requests
 from bs4 import BeautifulSoup
 
 
@@ -13,17 +13,13 @@ class BFIFetcher:
     ARTICLE_SEARCH_ID = "49C49C83-6BA0-420C-A784-9B485E36E2E0"
 
     def __init__(self):
-        """Initialize fetcher with cloudscraper session."""
-        # firefox, not chrome: Cloudflare 403s the chrome profile when the
-        # request comes from a Linux container (TLS fingerprint mismatch);
-        # the firefox profile passes from both macOS and Linux.
-        self.scraper = cloudscraper.create_scraper(
-            browser={
-                'browser': 'firefox',
-                'platform': 'linux',
-                'desktop': True
-            }
-        )
+        """Initialize fetcher with a TLS-impersonating session.
+
+        curl_cffi, not cloudscraper: Cloudflare rejects requests from
+        datacenter IPs (the OCI gateway box) unless the TLS fingerprint
+        matches a real browser, which cloudscraper cannot fake.
+        """
+        self.scraper = curl_requests.Session(impersonate="chrome")
 
     def build_url(self, date_from: str, date_to: Optional[str] = None) -> str:
         """Build BFI search URL for date range.
