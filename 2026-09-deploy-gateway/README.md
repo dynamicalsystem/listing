@@ -128,11 +128,8 @@ Done 2026-09-07:
 
 Blocked / remaining:
 
-- [ ] Push listing main to GitHub: the gh OAuth token lacks the `workflow`
-      scope, so the push carrying .github/workflows/ was rejected. Needs
-      `gh auth refresh -s workflow` (interactive) or a push from a shell
-      with the SSH agent loaded. First push to main triggers the first
-      GHCR image build.
+- [x] Push listing main to GitHub (done 2026-09-07 after Simon refreshed
+      the gh token with the workflow scope; first GHCR build succeeded).
 - [ ] On-box (Simon): create /home/ubuntu/listing/deploy/listing.env from
       config/listing.env.example; mkdir -p
       ~/.local/state/dynamicalsystem/listing; git pull tinsnip; re-run
@@ -146,8 +143,10 @@ Blocked / remaining:
 ### Outcome 1: Merges to main ship a deployable image
 
 Tests:
-- [ ] Push to main touching src/ or dockerfile triggers release.yml and
+- [/] Push to main touching src/ or dockerfile triggers release.yml and
       publishes ghcr.io/dynamicalsystem/listing:latest (amd64 + arm64)
+      (verified 2026-09-07: run 34158256631 succeeded; manifest carries
+      both arches)
 - [ ] PRs run the offline test suite via tests.yml
 
 ### Outcome 2: Gateway box serves the listings site unattended
