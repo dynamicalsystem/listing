@@ -14,10 +14,13 @@ class BFIFetcher:
 
     def __init__(self):
         """Initialize fetcher with cloudscraper session."""
+        # firefox, not chrome: Cloudflare 403s the chrome profile when the
+        # request comes from a Linux container (TLS fingerprint mismatch);
+        # the firefox profile passes from both macOS and Linux.
         self.scraper = cloudscraper.create_scraper(
             browser={
-                'browser': 'chrome',
-                'platform': 'darwin',
+                'browser': 'firefox',
+                'platform': 'linux',
                 'desktop': True
             }
         )

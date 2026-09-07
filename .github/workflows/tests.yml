@@ -1,0 +1,19 @@
+name: offline tests
+
+# PR gate: the unit/integration suite under tests/ is fully offline (network
+# calls are mocked). The live-network probes live in experiments/ and are
+# excluded from collection via pytest testpaths in pyproject.toml.
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+      - name: run offline test suite
+        run: uv run --frozen pytest -q

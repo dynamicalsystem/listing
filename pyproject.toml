@@ -27,3 +27,8 @@ dev = [
     "pytest>=8.3.4",
     "responses>=0.24.0",
 ]
+
+[tool.pytest.ini_options]
+# experiments/ contains live-network probes against the BFI site; keep them
+# out of default collection so plain `pytest` (and CI) stays offline.
+testpaths = ["tests"]
