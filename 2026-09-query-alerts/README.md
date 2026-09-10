@@ -27,119 +27,112 @@ captured - but the information died in the journal. Simon, who wanted
 exactly that alert, found out by accident a day later. The scraper sees;
 nothing tells anyone.
 
-Goal: users register a query and get alerted when new showings match it.
-The obvious query is movie name; the complicated ones are date functions
-(day of week, bag of dates, ranges).
+Re-cut 2026-09-10 (same day): the first draft decided on Signal push +
+magic-link registration + per-query RSS. Simon's challenge - "should the
+RSS feed just be an unfiltered list of everything? the website might
+collapse to an RSS link, and registration/Signal might not be necessary" -
+survived scrutiny and the loop was re-scoped around RSS-first.
 
 ## Observations
 
-- The daily sweep already computes exactly the needed delta:
-  schedule_changes rows (first_seen and field-level changes) per date, and
-  the ChangeDetector hash-compares snapshots. Alert evaluation can consume
-  this delta instead of re-diffing anything.
-- /rss/daily already serves a global last-24h changes feed - per-query RSS
-  is a filtered variant of an existing mechanism.
-- Delivery infra exists on the box: signal-cli-rest-api runs on signal-net
-  (gazette publishes through it; the tinsnip deploy notifier posts to a
-  Signal group). listing.container would need signal-net.network added in
-  tinsnip to reach it.
-- festers (same box) already implements magic-link auth: HMAC-fingerprinted
-  links keyed by a FESTERS_SECRET env var; the secret's stability is
-  load-bearing (a changed secret orphans every link). Pattern to study, not
-  import - festers is a separate codebase.
-- The webserver is read-only today; registration adds the first
-  user-writable state (subscriptions) to the SQLite database that the
-  maintenance one-shot also writes. Write concurrency stays trivial
-  (short transactions) but backups start mattering.
-- 2026-09-07 closure finding, still true: the site is public, so any
-  registration UI is an abuse surface - hence magic links, rate limiting,
-  and caps on subscriptions per identity.
+- /rss/current already IS the unfiltered everything-feed: one item per
+  showing (96 today) with title, date/time, format, rating, availability
+  status, per-showing detail link.
+- Gaps against the "primary interface" bar:
+  - availability_count is in the database but the feed renders only the
+    status word ("Sold Out"), not the ticket count.
+  - No purchase link was ever captured - only the showing's detail page
+    URL. The per-showing context_id we do capture may make a direct
+    booking URL derivable (original observe notes recorded booking links
+    on the page; verify).
+  - The item guid is the display string ("showing/Sunday 20 December 2026
+    20:30") - it carries no film identity and no stable id. A film swapped
+    into the same slot would keep the same guid and never resurface in
+    readers. bfi_showing_id is the right guid.
+- RSS reader unread-state is an alerting mechanism: a new showing becomes
+  a new guid, surfaced as unread on the reader's next poll after the 02:00
+  sweep. It also provides per-reader dedup for free - the delivered-alerts
+  table from the first draft falls away.
+- The daily sweep's schedule_changes delta still exists for anything that
+  later needs push semantics.
+- Delivery/auth infra observed for the first draft (signal-cli-rest-api on
+  the box, festers magic-link pattern) remains available if push is ever
+  justified; recorded here so the parked option keeps its context.
 
 ## Orientation
 
-A subscription is a predicate over showings:
+Two capabilities, in order of leverage:
 
-- title: case-insensitive substring on movie_title (v1); worth normalising
-  so "Dune 3" can match "Dune: Part Three" later, but v1 is substring.
-- date function, composable:
-  - day-of-week set (e.g. {Fri, Sat})
-  - explicit date bag (e.g. {2026-12-15, 2026-12-19})
-  - date range (from/to)
-  - absent = any date
-- possible later: time-of-day window, format (IMAX 70mm vs laser),
-  availability transitions ("went from sold out to available").
+1. The everything-feed as the product. Fix the three gaps (guid ->
+   bfi_showing_id; ticket count in item title/description; booking link -
+   verify derivability from context_id, else keep detail link and say so).
+   The feed then carries: date/time, title, purchase (or detail) link,
+   available tickets - Simon's four fields. New showings arrive as unread
+   items with no further machinery.
 
-Evaluation point: a post-sweep step. The sweep already writes
-schedule_changes; a dispatcher reads the delta (new showings first; field
-changes later), evaluates registered predicates against it, and emits one
-alert per (subscription, showing) - deduplicated by a delivered-alerts
-table so re-scrapes never re-alert.
+2. Stateless filtered feeds. A query is encoded entirely in the URL, e.g.
+   /rss/current?title=dune&dow=fri,sat&dates=2026-12-15,2026-12-19 -
+   title substring + composable date functions (day-of-week set, date bag,
+   range). The predicate evaluator from the first draft survives but runs
+   at render time; "registering" is bookmarking the URL in a reader.
+   No accounts, no subscription storage, no abuse surface beyond
+   rate-limiting a public read endpoint.
 
-Delivery (decided: both):
-- Per-query RSS: /rss/query/<token> renders the subscription's matches;
-  the token doubles as the capability to read it. Pull, zero delivery infra.
-- Signal push: dispatcher posts to the subscriber's number or a group via
-  signal-cli-rest-api. Push, requires signal-net membership for the
-  sending container.
+What RSS genuinely cannot do (the only remaining case for push +
+registration, parked until evidence demands it):
+- sub-poll-interval latency (on-sale timing for hot previews),
+- availability-transition alerts (sold out -> available) - these do not
+  map to unread semantics without guid abuse.
 
-Identity (decided: magic links, festers pattern): public form on the site;
-subscription is claimed/managed via an HMAC-fingerprinted link (own secret,
-e.g. LISTING_SECRET, same stability constraint as FESTERS_SECRET).
-Verification target is the delivery channel itself (the Signal number or
-the feed reader) so a subscription can only alert somewhere its owner
-controls.
-
-Natural sub-loop cut (each independently testable):
-1. query-model: subscription schema + predicate evaluator + dedup. Pure
-   Python + SQLite, no UI, no delivery. Testable against recorded
-   schedule_changes fixtures (the Dune preview day is the fixture).
-2. delivery: dispatcher + Signal send + per-query RSS endpoint, driven by
-   seeded subscriptions. Needs the tinsnip signal-net change.
-3. registration: public form, magic-link issue/verify/manage, rate
-   limiting and per-identity caps. Study festers first.
+The website remains as the already-built view; no further investment.
 
 ## Decision
 
-Build in three sub-loops in the order above - the evaluator is useful the
-day it lands (we can seed our own subscriptions by SQL long before the
-registration UI exists), delivery makes it audible, registration makes it
-public. Each sub-loop gets its own outcomes and tests; this parent closes
-when all three do.
+RSS-first, two acts, no registration:
 
-Rationale from orientation: the change-detection delta already exists, so
-the evaluator is cheap and low-risk; delivery reuses proven on-box infra;
-registration is the largest and riskiest surface (auth + abuse) and is
-deliberately last so the useful core never waits on it.
+1. ACT feed-hardening: guid = bfi_showing_id, availability count rendered,
+   booking link verified/derived or explicitly settled as detail link.
+2. ACT query-feeds: stateless query-parameter filtering on the feed
+   (title substring; day-of-week set; date bag; date range; composable),
+   with tests over recorded fixtures (the Dune preview day).
+
+Signal push and magic-link registration are PARKED, not planned. Unblocker
+recorded in the backlog: demonstrated need for push latency or for
+availability-transition alerts.
+
+Rationale from orientation: capability 1 is a small hardening of a live
+endpoint and immediately covers the motivating incident; capability 2
+reuses the predicate design with zero state; everything cut was
+infrastructure whose job a feed reader already does.
 
 ## Action
 
-Not started. Sub-loops to be created:
+Not started.
 
-- [ ] 2026-09-alerts-query-model
-- [ ] 2026-09-alerts-delivery
-- [ ] 2026-09-alerts-registration
+- [ ] ACT feed-hardening (branch: feed/hardening)
+- [ ] ACT query-feeds (branch: feed/query-filters)
 
 ## Outcomes
 
-### Outcome 1: A registered movie-name query alerts on new showings
+### Outcome 1: The everything-feed is a trustworthy primary interface
 
 Tests:
-- [ ] A subscription for "Dune" receives a Signal message when a new Dune
-      showing first appears in a sweep, and never a duplicate for the same
-      showing on later sweeps
-- [ ] The subscription's RSS feed serves the same matches
+- [ ] Each item carries date/time, title, ticket availability count, and
+      the best bookable link we can produce (booking URL if derivable,
+      else detail link - decision recorded either way)
+- [ ] Item guids are bfi_showing_id: a re-scrape changes no guids; a new
+      showing (Dune-preview fixture) yields exactly one new unread item in
+      a feed reader
+- [ ] A film replacing another in the same slot yields a new guid
 
-### Outcome 2: Date-function queries work
-
-Tests:
-- [ ] A {Fri,Sat} day-of-week subscription matches only Friday/Saturday
-      showings
-- [ ] A date-bag subscription matches only showings on its listed dates
-- [ ] Composed title + date-function predicates match the intersection
-
-### Outcome 3: Registration is safe on the public site
+### Outcome 2: Query feeds answer the motivating use cases statelessly
 
 Tests:
-- [ ] A subscription can only be created/managed via its magic link, and
-      alerts only reach a channel its owner demonstrably controls
-- [ ] Rate limits and per-identity caps hold under a scripted abuse attempt
+- [ ] /rss/current?title=dune serves only Dune showings; bookmarking it in
+      a reader and re-polling after a sweep that adds a Dune showing
+      surfaces exactly one unread item
+- [ ] A {fri,sat} day-of-week filter serves only Friday/Saturday showings;
+      a date-bag filter serves only its listed dates; title + date filters
+      compose as intersection
+- [ ] An invalid or empty query degrades cleanly (400 or empty feed, not a
+      500)

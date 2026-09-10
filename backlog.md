@@ -4,7 +4,11 @@ Durable observations and cross-loop triggers for the listing product.
 
 ## Triggers
 
-(none open)
+- when: push latency or availability-transition alerts (sold out ->
+  available) are demonstrably needed for listing
+  then: "unpark Signal push + magic-link registration - design context is
+  preserved in 2026-09-query-alerts Observations (first-draft decision,
+  re-cut 2026-09-10 to RSS-first)"
 
 - [fired 2026-09-10] when: 2026-09-deploy-gateway reaches Closed
   then: start the 30-day soak test -> opened 2026-09-soak-test (verify on
