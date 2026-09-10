@@ -6,9 +6,11 @@ from pydantic import BaseModel
 
 class Showing(BaseModel):
     """A single movie showing."""
+    bfi_showing_id: Optional[str] = None
     showing_date: str
     showing_time: str
     showing_datetime_utc: str
+    scraped_at: Optional[str] = None
     movie_title: str
     format_keywords: Optional[str] = None
     rating: Optional[str] = None
@@ -48,6 +50,21 @@ class Showing(BaseModel):
             "S": "Sold Out"
         }
         return status_map.get(self.availability_status or "", "Unknown")
+
+    def availability_full(self) -> str:
+        """Availability with ticket count when known."""
+        base = self.availability_display()
+        if self.availability_count is not None:
+            return f"{base} ({self.availability_count} tickets)"
+        return base
+
+    def guid_key(self) -> str:
+        """Stable per-showing identity for feed guids.
+
+        bfi_showing_id survives re-scrapes and changes when a different
+        film takes the slot; the datetime fallback only covers legacy rows.
+        """
+        return self.bfi_showing_id or self.showing_datetime_utc
 
 
 class HealthInfo(BaseModel):
