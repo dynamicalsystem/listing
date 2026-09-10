@@ -2,7 +2,7 @@
 loop: 2026-09-query-alerts
 product: listing
 owner: dynamicalsystem
-status: Decide
+status: Act
 parent: null
 blocked-by: []
 worktrees: []
@@ -14,7 +14,7 @@ triggers: []
 
 ## Status
 
-Decide
+Act
 
 **Owner:** dynamicalsystem
 
@@ -107,9 +107,16 @@ infrastructure whose job a feed reader already does.
 
 ## Action
 
-Not started.
-
-- [ ] ACT feed-hardening (branch: feed/hardening)
+- [x] ACT feed-hardening (branch feed/hardening, merged to main
+      2026-09-10; deployed by auto-update and verified live). Booking-link
+      investigation settled: the per-showing detail link (article_id +
+      context_id) lands directly on BFI's "Buy cinema tickets for ..."
+      page - it IS the purchase link; no separate URL exists to derive.
+      guids are bfi_showing_id (daily-changes guids append scraped_at so
+      repeat changes resurface); availability renders the ticket count.
+      8 new tests in tests/test_webserver.py cover the guid properties.
+      One-time cost accepted: the guid scheme change re-surfaces all
+      current items as unread once in existing readers.
 - [ ] ACT query-feeds (branch: feed/query-filters)
 
 ## Outcomes
@@ -117,13 +124,14 @@ Not started.
 ### Outcome 1: The everything-feed is a trustworthy primary interface
 
 Tests:
-- [ ] Each item carries date/time, title, ticket availability count, and
-      the best bookable link we can produce (booking URL if derivable,
-      else detail link - decision recorded either way)
-- [ ] Item guids are bfi_showing_id: a re-scrape changes no guids; a new
-      showing (Dune-preview fixture) yields exactly one new unread item in
-      a feed reader
-- [ ] A film replacing another in the same slot yields a new guid
+- [/] Each item carries date/time, title, ticket availability count, and
+      the bookable link (verified live 2026-09-10; the detail link is the
+      purchase page, decision recorded in Action)
+- [/] Item guids are bfi_showing_id: re-scrape stability and
+      one-new-item-per-new-showing unit tested (test_webserver.py);
+      live guids confirmed as BFI showing UUIDs
+- [/] A film replacing another in the same slot yields a new guid
+      (unit tested)
 
 ### Outcome 2: Query feeds answer the motivating use cases statelessly
 
