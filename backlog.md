@@ -4,10 +4,11 @@ Durable observations and cross-loop triggers for the listing product.
 
 ## Triggers
 
-- when: 2026-09-deploy-gateway reaches Closed
-  then: "start the 30-day soak test abandoned at 2025-10-imax-listing-scraper
-  closure: confirm daily maintenance runs unattended for 30+ days with no
-  stale data and no manual intervention"
+(none open)
+
+- [fired 2026-09-10] when: 2026-09-deploy-gateway reaches Closed
+  then: start the 30-day soak test -> opened 2026-09-soak-test (verify on
+  or after 2026-10-08)
 
 ## Observations
 

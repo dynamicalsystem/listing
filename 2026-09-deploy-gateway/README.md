@@ -2,7 +2,7 @@
 loop: 2026-09-deploy-gateway
 product: listing
 owner: dynamicalsystem
-status: Act
+status: Closed
 parent: null
 blocked-by: []
 worktrees: []
@@ -12,11 +12,11 @@ triggers:
     then: "start the 30-day soak test abandoned at 2025-10-imax-listing-scraper closure"
 ---
 
-# Deploy Listing to Gateway
+# [ARCHIVED] Deploy Listing to Gateway
 
 ## Status
 
-Act
+Closed
 
 **Owner:** dynamicalsystem
 
@@ -147,9 +147,9 @@ Blocked / remaining:
       file, state dir, install.sh, units started, timer enabled.
 - [x] Public hostname: listing.dynamicalsystem.com (wildcard DNS already on
       the box; /etc/caddy/conf.d/listing.caddy added, SITE_URL set).
-- [ ] Confirm the first scheduled timer firing (2026-09-08 02:00
-      Europe/London) exits 0, then close this loop - which fires the backlog
-      trigger for the 30-day soak test.
+- [x] Confirmed scheduled timer firings Sep 08/09/10 all exit 0; loop closed
+      2026-09-10, firing the backlog trigger for the 30-day soak test
+      ([2026-09-soak-test](../2026-09-soak-test/README.md)).
 
 ## Outcomes
 
@@ -168,9 +168,10 @@ Tests:
 - [/] listing.container starts on the box, passes its /health gate, and is
       reachable via caddy at https://listing.dynamicalsystem.com (verified
       2026-09-07: healthy, 102 listings, page 200 in 161ms, RSS valid)
-- [ ] listing-maintain.timer fires at 02:00 Europe/London and the sweep exits 0
-      (sweep verified exit 0 on the box via manual start 2026-09-07; awaiting
-      the first scheduled firing on 2026-09-08)
+- [/] listing-maintain.timer fires at 02:00 Europe/London and the sweep exits 0
+      (verified 2026-09-10: fired on schedule at 01:00 UTC = 02:00 BST on
+      Sep 08/09/10, all exit 0, changes detected daily, expired listings
+      cleaned - oldest_listing tracks today)
 - [/] podman auto-update swaps in a new image after a main merge with no
       manual steps beyond the merge (verified 2026-09-07: the curl_cffi merge
       was pulled and health-gate swapped by podman-auto-update.timer
