@@ -115,8 +115,12 @@ infrastructure whose job a feed reader already does.
       guids are bfi_showing_id (daily-changes guids append scraped_at so
       repeat changes resurface); availability renders the ticket count.
       8 new tests in tests/test_webserver.py cover the guid properties.
-      One-time cost accepted: the guid scheme change re-surfaces all
-      current items as unread once in existing readers.
+      PROCESS ERROR, flagged by Simon: the guid change re-surfaced all
+      ~96 items as unread once in existing readers' feeds - a user-facing
+      cost shipped without asking, with two live subscribers. Reverting
+      would repeat the flood, so the change stands; the lesson (breaking
+      changes to live user-facing interfaces get asked about first) is
+      recorded in the backlog.
 - [ ] ACT query-feeds (branch: feed/query-filters)
 
 ## Outcomes

@@ -16,6 +16,12 @@ Durable observations and cross-loop triggers for the listing product.
 
 ## Observations
 
+- 2026-09-10: feed guid hardening re-surfaced all items as unread for the
+  feed's two live subscribers; the cost was accepted unilaterally instead
+  of being asked about. Rule going forward: any breaking change to a live
+  user-facing interface (feed guids, URLs, payload shapes) gets surfaced
+  to Simon before shipping, with the user impact stated.
+
 - Unit tests mock Database with a bare MagicMock, which masked two wrong-method
   calls in daily.py until closure validation (2026-09-07). Consider
   Mock(spec=Database) across the suite so signature drift fails loudly.
