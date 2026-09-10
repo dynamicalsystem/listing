@@ -23,6 +23,7 @@ def get_upcoming_showings(db_path: str) -> List[Showing]:
     try:
         cursor = conn.execute("""
             SELECT
+                bfi_showing_id,
                 showing_date,
                 showing_time,
                 showing_datetime_utc,
@@ -67,6 +68,7 @@ def get_recent_changes(db_path: str, hours: int = 24) -> List[Showing]:
 
         cursor = conn.execute("""
             SELECT
+                bfi_showing_id,
                 showing_date,
                 showing_time,
                 showing_datetime_utc,
@@ -88,8 +90,7 @@ def get_recent_changes(db_path: str, hours: int = 24) -> List[Showing]:
         """, (cutoff_str,))
 
         rows = cursor.fetchall()
-        return [Showing(**{k: row[k] for k in row.keys() if k != 'scraped_at'})
-                for row in rows]
+        return [Showing(**dict(row)) for row in rows]
     finally:
         conn.close()
 

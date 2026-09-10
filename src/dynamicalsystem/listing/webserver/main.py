@@ -95,7 +95,7 @@ async def rss_current():
         for showing in showings:
             fe = fg.add_entry()
             title = f"{showing.movie_title} - {showing.showing_date} {showing.showing_time}"
-            fe.id(f"{Config.SITE_URL}/showing/{showing.showing_datetime_utc}")
+            fe.id(f"{Config.SITE_URL}/showing/{showing.guid_key()}")
             fe.title(title)
             fe.link(href=showing.detail_url())
 
@@ -104,7 +104,7 @@ async def rss_current():
             <p>Date: {showing.showing_date} at {showing.showing_time}</p>
             <p>Format: {showing.format_display()}</p>
             <p>Rating: {showing.rating or 'N/A'}</p>
-            <p>Availability: {showing.availability_display()}</p>
+            <p>Availability: {showing.availability_full()}</p>
             """
             fe.description(description)
 
@@ -147,7 +147,7 @@ async def rss_daily():
         for showing in showings:
             fe = fg.add_entry()
             title = f"{showing.movie_title} - {showing.showing_date} {showing.showing_time}"
-            fe.id(f"{Config.SITE_URL}/change/{showing.showing_datetime_utc}")
+            fe.id(f"{Config.SITE_URL}/change/{showing.guid_key()}/{showing.scraped_at or ''}")
             fe.title(title)
             fe.link(href=showing.detail_url())
 
@@ -156,7 +156,7 @@ async def rss_daily():
             <p>Date: {showing.showing_date} at {showing.showing_time}</p>
             <p>Format: {showing.format_display()}</p>
             <p>Rating: {showing.rating or 'N/A'}</p>
-            <p>Availability: {showing.availability_display()}</p>
+            <p>Availability: {showing.availability_full()}</p>
             """
             fe.description(description)
 
