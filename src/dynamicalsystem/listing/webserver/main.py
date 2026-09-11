@@ -2,17 +2,18 @@
 
 import os
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional
 from collections import defaultdict
 from datetime import datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import feedgen.feed
 
 from dynamicalsystem.listing.config import Config
+from .filters import FilterError, matches, parse_filters
 from .queries import get_upcoming_showings, get_recent_changes, get_health_info
 from .models import Showing, HealthInfo
 
@@ -119,15 +120,33 @@ async def health_check():
 
 
 @app.get("/rss/current")
-async def rss_current():
-    """RSS feed of all upcoming showings."""
+async def rss_current(
+    title: Optional[str] = None,
+    dow: Optional[str] = None,
+    dates: Optional[str] = None,
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+):
+    """RSS feed of upcoming showings; ?title/?dow/?dates/?from/?to filter it."""
+    try:
+        spec, filter_desc = parse_filters(title, dow, dates, date_from, date_to)
+    except FilterError as e:
+        return Response(
+            content=f"<?xml version='1.0'?><error>{e}</error>",
+            media_type="application/xml",
+            status_code=400
+        )
+
     try:
         showings = get_upcoming_showings(Config.DB_PATH)
+        if spec:
+            showings = [sh for sh in showings if matches(sh, spec)]
 
         # Create feed
         fg = feedgen.feed.FeedGenerator()
         fg.id(f"{Config.SITE_URL}/rss/current")
-        fg.title("BFI IMAX - Current Schedule")
+        fg.title("BFI IMAX - Current Schedule"
+                 + (f" ({filter_desc})" if spec else ""))
         fg.author({"name": "BFI IMAX Listings", "email": "noreply@example.com"})
         fg.link(href=Config.SITE_URL, rel="alternate")
         fg.link(href=f"{Config.SITE_URL}/rss/current", rel="self")
@@ -151,15 +170,33 @@ async def rss_current():
 
 
 @app.get("/rss/daily")
-async def rss_daily():
-    """RSS feed of showings added/changed in last 24 hours."""
+async def rss_daily(
+    title: Optional[str] = None,
+    dow: Optional[str] = None,
+    dates: Optional[str] = None,
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+):
+    """RSS feed of recent changes; ?title/?dow/?dates/?from/?to filter it."""
+    try:
+        spec, filter_desc = parse_filters(title, dow, dates, date_from, date_to)
+    except FilterError as e:
+        return Response(
+            content=f"<?xml version='1.0'?><error>{e}</error>",
+            media_type="application/xml",
+            status_code=400
+        )
+
     try:
         showings = get_recent_changes(Config.DB_PATH, hours=24)
+        if spec:
+            showings = [sh for sh in showings if matches(sh, spec)]
 
         # Create feed
         fg = feedgen.feed.FeedGenerator()
         fg.id(f"{Config.SITE_URL}/rss/daily")
-        fg.title("BFI IMAX - Daily Changes")
+        fg.title("BFI IMAX - Daily Changes"
+                 + (f" ({filter_desc})" if spec else ""))
         fg.author({"name": "BFI IMAX Listings", "email": "noreply@example.com"})
         fg.link(href=Config.SITE_URL, rel="alternate")
         fg.link(href=f"{Config.SITE_URL}/rss/daily", rel="self")
