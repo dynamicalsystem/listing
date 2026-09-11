@@ -89,8 +89,8 @@ class Database:
         try:
             for showing in showings:
                 try:
-                    conn.execute("""
-                        INSERT INTO listings (
+                    cursor = conn.execute("""
+                        INSERT OR IGNORE INTO listings (
                             bfi_showing_id,
                             movie_title, movie_slug, rating,
                             showing_date, showing_time, showing_datetime_utc, showing_datetime_display,
@@ -117,7 +117,20 @@ class Database:
                         showing.get('availability_status'),
                         showing.get('availability_count'),
                     ))
-                    inserted += 1
+                    if cursor.rowcount:
+                        inserted += 1
+                    else:
+                        # Existing showing: refresh availability so the feed
+                        # tracks ticket releases. scraped_at stays first-seen.
+                        conn.execute("""
+                            UPDATE listings
+                            SET availability_status = ?, availability_count = ?
+                            WHERE bfi_showing_id = ?
+                        """, (
+                            showing.get('availability_status'),
+                            showing.get('availability_count'),
+                            showing.get('bfi_showing_id'),
+                        ))
                 except sqlite3.IntegrityError:
                     # Duplicate - skip
                     pass

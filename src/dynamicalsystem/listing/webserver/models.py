@@ -28,6 +28,42 @@ class Showing(BaseModel):
             return f"https://whatson.bfi.org.uk/imax/Online/{self.detail_url_path}"
         return ""
 
+    def buy_url(self) -> str:
+        """Seat-selection page for this specific showing.
+
+        bfi_showing_id is BFI's performance id; mapSelect binds the seat
+        widget to it (verified live 2026-09-11). Falls back to the film
+        detail page when the id is missing.
+        """
+        if self.bfi_showing_id:
+            return (
+                "https://whatson.bfi.org.uk/imax/Online/mapSelect.asp"
+                "?doWork::WSmap::loadMap=1"
+                f"&BOparam::WSmap::loadMap::performance_ids={self.bfi_showing_id}"
+            )
+        return self.detail_url()
+
+    def day_of_week(self) -> str:
+        """Abbreviated day of week for the showing date, e.g. 'Thu'."""
+        from datetime import date as _date
+        try:
+            return _date.fromisoformat(self.showing_date).strftime('%a')
+        except ValueError:
+            return ""
+
+    def date_display(self) -> str:
+        """Short human date with day of week, e.g. 'Thu 10-Sep'."""
+        from datetime import date as _date
+        try:
+            d = _date.fromisoformat(self.showing_date)
+            return d.strftime('%a %d-%b')
+        except ValueError:
+            return self.showing_date
+
+    def title_display(self) -> str:
+        """Feed item title: '<movie title> - Thu 10-Sep 22:30'."""
+        return f"{self.movie_title} - {self.date_display()} {self.showing_time}"
+
     def format_display(self) -> str:
         """Get human-readable format string."""
         formats = []

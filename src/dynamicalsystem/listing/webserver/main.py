@@ -30,6 +30,49 @@ templates = Jinja2Templates(directory=str(WEBSERVER_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(WEBSERVER_DIR / "static")), name="static")
 
 
+
+# Items first seen before this instant keep the exact pre-cutover rendering
+# (title, link, body shape) so live subscribers' already-seen items stay
+# byte-identical apart from availability values, which refresh by decision
+# (2026-09-11). Rows first seen after it get the new format.
+FEED_FORMAT_CUTOVER = "2026-09-11T12:00:00+00:00"
+
+
+def add_showing_entry(fg, showing, guid: str):
+    """Add one showing to a feed, choosing legacy or current format."""
+    fe = fg.add_entry()
+    fe.id(guid)
+
+    if (showing.scraped_at or "") < FEED_FORMAT_CUTOVER:
+        # legacy rendering - do not change: live readers have seen these items
+        fe.title(f"{showing.movie_title} - {showing.showing_date} {showing.showing_time}")
+        fe.link(href=showing.detail_url())
+        description = f"""
+            <p><strong>{showing.movie_title}</strong></p>
+            <p>Date: {showing.showing_date} at {showing.showing_time}</p>
+            <p>Format: {showing.format_display()}</p>
+            <p>Rating: {showing.rating or 'N/A'}</p>
+            <p>Availability: {showing.availability_full()}</p>
+            """
+    else:
+        fe.title(showing.title_display())
+        fe.link(href=showing.buy_url())
+        description = f"""
+            <p>Availability: {showing.availability_full()}</p>
+            <p><strong>{showing.movie_title}</strong></p>
+            <p>Date: {showing.day_of_week()} {showing.showing_date} at {showing.showing_time}</p>
+            <p>Format: {showing.format_display()}</p>
+            <p>Rating: {showing.rating or 'N/A'}</p>
+            <p><a href="{showing.detail_url()}">Film details</a></p>
+            """
+    fe.description(description)
+
+    try:
+        fe.published(datetime.fromisoformat(showing.showing_datetime_utc))
+    except Exception:
+        pass
+
+
 @app.get("/", response_class=HTMLResponse)
 async def listings_page(request: Request):
     """Render HTML page with all upcoming listings."""
@@ -93,27 +136,7 @@ async def rss_current():
 
         # Add entries
         for showing in showings:
-            fe = fg.add_entry()
-            title = f"{showing.movie_title} - {showing.showing_date} {showing.showing_time}"
-            fe.id(f"{Config.SITE_URL}/showing/{showing.guid_key()}")
-            fe.title(title)
-            fe.link(href=showing.detail_url())
-
-            description = f"""
-            <p><strong>{showing.movie_title}</strong></p>
-            <p>Date: {showing.showing_date} at {showing.showing_time}</p>
-            <p>Format: {showing.format_display()}</p>
-            <p>Rating: {showing.rating or 'N/A'}</p>
-            <p>Availability: {showing.availability_full()}</p>
-            """
-            fe.description(description)
-
-            # Use showing datetime as published date
-            try:
-                pub_date = datetime.fromisoformat(showing.showing_datetime_utc)
-                fe.published(pub_date)
-            except:
-                pass
+            add_showing_entry(fg, showing, f"{Config.SITE_URL}/showing/{showing.guid_key()}")
 
         # Generate RSS XML
         rss_str = fg.rss_str(pretty=True)
@@ -145,26 +168,7 @@ async def rss_daily():
 
         # Add entries
         for showing in showings:
-            fe = fg.add_entry()
-            title = f"{showing.movie_title} - {showing.showing_date} {showing.showing_time}"
-            fe.id(f"{Config.SITE_URL}/change/{showing.guid_key()}/{showing.scraped_at or ''}")
-            fe.title(title)
-            fe.link(href=showing.detail_url())
-
-            description = f"""
-            <p><strong>{showing.movie_title}</strong></p>
-            <p>Date: {showing.showing_date} at {showing.showing_time}</p>
-            <p>Format: {showing.format_display()}</p>
-            <p>Rating: {showing.rating or 'N/A'}</p>
-            <p>Availability: {showing.availability_full()}</p>
-            """
-            fe.description(description)
-
-            try:
-                pub_date = datetime.fromisoformat(showing.showing_datetime_utc)
-                fe.published(pub_date)
-            except:
-                pass
+            add_showing_entry(fg, showing, f"{Config.SITE_URL}/change/{showing.guid_key()}/{showing.scraped_at or ''}")
 
         # Generate RSS XML
         rss_str = fg.rss_str(pretty=True)

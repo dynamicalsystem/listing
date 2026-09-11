@@ -36,7 +36,8 @@ def get_upcoming_showings(db_path: str) -> List[Showing]:
                 is_3d,
                 is_70mm,
                 is_laser,
-                has_subtitles
+                has_subtitles,
+                scraped_at
             FROM listings
             WHERE showing_date >= date('now')
             ORDER BY showing_date, showing_time
