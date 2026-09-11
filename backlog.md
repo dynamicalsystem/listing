@@ -16,6 +16,10 @@ Durable observations and cross-loop triggers for the listing product.
 
 ## Observations
 
+- Availability status codes beyond G/L/S exist in BFI data (e.g. 'E', seen
+  on Super Nature rows) and render as "Unknown (N tickets)" in the feed.
+  Harmless but worth mapping when the meaning is known.
+
 - 2026-09-10: feed guid hardening re-surfaced all items as unread for the
   feed's two live subscribers; the cost was accepted unilaterally instead
   of being asked about. Rule going forward: any breaking change to a live

@@ -121,6 +121,21 @@ infrastructure whose job a feed reader already does.
       would repeat the flood, so the change stands; the lesson (breaking
       changes to live user-facing interfaces get asked about first) is
       recorded in the backlog.
+- [x] ACT feed-polish (branch feed/polish, merged 2026-09-11; Simon's
+      refinements, forward-only): new-format items link to the showing's
+      seat-selection page (mapSelect.asp?...performance_ids=<bfi_showing_id>
+      - probed live, the id binds the seat widget), title format
+      '<movie> - Thu 10-Sep 22:30', availability first in body, DOW on the
+      date line, film page linked at the bottom. Items first seen before
+      the 2026-09-11T12:00Z cutover keep their exact legacy rendering
+      (pinned by test); verified live - post-deploy feed byte-identical to
+      the pre-deploy snapshot apart from lastBuildDate. Also fixed a real
+      defect found en route: upsert_showings was an alias for
+      insert-and-ignore, so availability was frozen at first sight; sweeps
+      now refresh availability_status/count on existing rows (Simon
+      approved; verified live - counts moved after a sweep with zero
+      title/guid changes). New-format rendering appears with the first
+      genuinely new showing.
 - [ ] ACT query-feeds (branch: feed/query-filters)
 
 ## Outcomes
