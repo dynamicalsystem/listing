@@ -2,7 +2,7 @@
 loop: 2026-09-query-alerts
 product: listing
 owner: dynamicalsystem
-status: Act
+status: Closed
 parent: null
 blocked-by: []
 worktrees: []
@@ -10,11 +10,11 @@ prs: []
 triggers: []
 ---
 
-# Query Alerts
+# [ARCHIVED] Query Alerts
 
 ## Status
 
-Act
+Closed
 
 **Owner:** dynamicalsystem
 
@@ -136,7 +136,15 @@ infrastructure whose job a feed reader already does.
       approved; verified live - counts moved after a sweep with zero
       title/guid changes). New-format rendering appears with the first
       genuinely new showing.
-- [ ] ACT query-feeds (branch: feed/query-filters)
+- [x] ACT query-feeds (branch feed/query-filters, merged 2026-09-11,
+      deployed by auto-update): stateless filters on both feeds -
+      ?title substring, ?dow=fri,sat, ?dates=..., ?from/?to, composing as
+      intersection at render time; invalid values 400 with the reason;
+      filtered feed titles label the query. README rewritten as user docs
+      for the feed URLs (it still pointed at the removed in-tree ooda/).
+      Verified live: unfiltered feed byte-identical post-deploy,
+      ?title=dune serves exactly the 5 Dune items, ?dow=fri,sat serves
+      29/92, ?dow=funday returns 400.
 
 ## Outcomes
 
@@ -155,11 +163,10 @@ Tests:
 ### Outcome 2: Query feeds answer the motivating use cases statelessly
 
 Tests:
-- [ ] /rss/current?title=dune serves only Dune showings; bookmarking it in
-      a reader and re-polling after a sweep that adds a Dune showing
-      surfaces exactly one unread item
-- [ ] A {fri,sat} day-of-week filter serves only Friday/Saturday showings;
-      a date-bag filter serves only its listed dates; title + date filters
-      compose as intersection
-- [ ] An invalid or empty query degrades cleanly (400 or empty feed, not a
-      500)
+- [/] /rss/current?title=dune serves only Dune showings (verified live:
+      exactly the 5 Dune items); one-new-unread-item-per-new-showing unit
+      tested (test_feed_filters.py)
+- [/] Day-of-week, date-bag, range, and composed intersection filters all
+      unit tested; dow verified live (29/92 items for fri,sat)
+- [/] Invalid queries return 400 with the reason (unit + live); no-match
+      queries return a valid empty feed (unit tested)
