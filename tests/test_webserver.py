@@ -93,14 +93,52 @@ def test_replacement_film_in_same_slot_gets_new_guid(client):
 
 
 def test_current_feed_item_content(client):
+    """New-format items: buy link, DOW title, availability first."""
     tc, db = client
     db.insert_showings([make_showing('SHOW-1', 'Dune: Part Three')])
 
     rss = tc.get('/rss/current').text
-    assert 'Dune: Part Three' in rss
-    assert f'{FUTURE_DATE} at 19:30' in rss
-    assert 'Good (150 tickets)' in rss
-    assert 'whatson.bfi.org.uk/imax/Online/default.asp?article_id=ABC' in rss
+    dow_short = date.fromisoformat(FUTURE_DATE).strftime('%a %d-%b')
+    dow = date.fromisoformat(FUTURE_DATE).strftime('%a')
+
+    # title: <movie title> - <Thu 10-Sep> <22:30>
+    assert f'<title>Dune: Part Three - {dow_short} 19:30</title>' in rss
+    # item link is the showing's seat-selection page
+    assert 'mapSelect.asp?doWork::WSmap::loadMap=1' in rss
+    assert 'performance_ids=SHOW-1' in rss
+    # body: availability first, then film, then DOW-prefixed date
+    body = re.findall(r'<description>(.*?)</description>', rss, re.S)[1]
+    first_para = re.search(r'&lt;p&gt;([^&]*)', body).group(1)
+    assert first_para.startswith('Availability:')
+    assert 'Good (150 tickets)' in body
+    assert f'Date: {dow} {FUTURE_DATE} at 19:30' in body
+    # film detail page still reachable from the body
+    assert 'default.asp?article_id=ABC' in body
+
+
+def test_legacy_items_keep_pre_cutover_rendering(client):
+    """Rows first seen before the cutover render exactly the old format."""
+    tc, db = client
+    db.insert_showings([make_showing('SHOW-OLD', 'Dune: Part Three')])
+
+    # age the row to before the format cutover
+    import sqlite3
+    conn = sqlite3.connect(Config.DB_PATH)
+    conn.execute("UPDATE listings SET scraped_at = '2026-09-01T01:00:00+00:00'")
+    conn.commit()
+    conn.close()
+
+    rss = tc.get('/rss/current').text
+    # old title: ISO date, no day of week
+    assert f'<title>Dune: Part Three - {FUTURE_DATE} 19:30</title>' in rss
+    # old item link: film detail page, not the seat map
+    assert 'mapSelect.asp' not in rss
+    assert 'default.asp?article_id=ABC' in rss
+    # old body order: availability last, no Film details anchor
+    body = re.findall(r'<description>(.*?)</description>', rss, re.S)[1]
+    first_para = re.search(r'&lt;p&gt;(.*?)&lt;/p&gt;', body, re.S).group(1)
+    assert 'Dune: Part Three' in first_para
+    assert 'Film details' not in body
 
 
 def test_current_feed_count_absent_degrades(client):

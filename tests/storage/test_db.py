@@ -458,3 +458,22 @@ def test_get_health_info_with_data(db, sample_showing):
     assert info['listings_count'] == 1
     assert info['oldest_listing'] == FUTURE_DATE
     assert info['newest_listing'] == FUTURE_DATE
+
+
+def test_insert_showings_refreshes_availability_on_existing(db, sample_showing):
+    """Re-scraping an existing showing updates availability, nothing else."""
+    db.insert_showings([sample_showing])
+    before = db.get_upcoming_showings()[0]
+
+    rescrape = sample_showing.copy()
+    rescrape['availability_count'] = 5
+    rescrape['availability_status'] = 'L'
+    rescrape['movie_title'] = 'Renamed Film'  # must NOT be applied
+    inserted = db.insert_showings([rescrape])
+
+    assert inserted == 0  # no new row
+    after = db.get_upcoming_showings()[0]
+    assert after['availability_count'] == 5
+    assert after['availability_status'] == 'L'
+    assert after['movie_title'] == before['movie_title']
+    assert after['scraped_at'] == before['scraped_at']  # first-seen preserved
