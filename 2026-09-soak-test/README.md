@@ -37,6 +37,11 @@ scheduled timer has run clean since 2026-09-08.
   newest 2026-12-20. last_scrape_status "partial" is the completeness of
   the last date scraped (scrape_schedule.status), not the sweep exit code;
   exit codes are only visible in the gateway journal.
+- 2026-09-12 23:00 UTC: Simon reported no new listings since Sep 10.
+  Independent check from a local venv: BFI publishes 83 upcoming showings
+  (Sep 13 to Dec 20), all 83 present in the feed. Not a system fault; BFI
+  had added nothing. Gateway journal exit codes not yet read (ssh read
+  blocked from the session; Simon to run manually).
 
 ## Orientation
 

@@ -16,6 +16,14 @@ Durable observations and cross-loop triggers for the listing product.
 
 ## Observations
 
+- 2026-09-12: the daily feed only lists showings first seen in the last
+  24h; availability refreshes deliberately leave scraped_at alone. So a
+  quiet BFI (no new showings since 2026-09-10) and a broken scraper look
+  identical to a subscriber. Verified working by diffing BFI live (83) vs
+  feed (87, the extra 4 being that day's showings): 0 missing. Consider a
+  way for subscribers to tell quiet from broken, e.g. last-sweep time in
+  the channel description or a daily heartbeat item.
+
 - Availability status codes beyond G/L/S exist in BFI data (e.g. 'E', seen
   on Super Nature rows) and render as "Unknown (N tickets)" in the feed.
   Harmless but worth mapping when the meaning is known.
