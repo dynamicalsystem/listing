@@ -32,6 +32,11 @@ scheduled timer has run clean since 2026-09-08.
   Sep 08/09/10 all exited 0, scraped 33-34 dates, detected changes daily,
   and pruned expired listings (oldest_listing tracks today).
 - podman auto-update swapped the curl_cffi image unattended on 2026-09-07.
+- 2026-09-12 22:44 UTC health check: status healthy, last_scrape
+  2026-09-12T01:05:58Z, 87 listings, oldest_listing 2026-09-12 (today),
+  newest 2026-12-20. last_scrape_status "partial" is the completeness of
+  the last date scraped (scrape_schedule.status), not the sweep exit code;
+  exit codes are only visible in the gateway journal.
 
 ## Orientation
 
