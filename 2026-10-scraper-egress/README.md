@@ -5,7 +5,7 @@ owner: dynamicalsystem
 status: Act
 parent: null
 blocked-by: []
-worktrees: [listing/scraper-egress (branch egress/instrument-challenges)]
+worktrees: []
 prs: [https://github.com/dynamicalsystem/listing/pull/1]
 triggers: []
 ---
@@ -138,8 +138,10 @@ Pending. Experiments to run before deciding:
   - Verified: 174 tests pass (21 new); migration run against a copy of the
     production database (v1->v2, 160 listings intact); one live request
     through the new code from the Mac: 200, cf-ray recorded.
-  - Awaiting review/merge. Outcome 1 tests become checkable after the
-    first 18:30 sweep following deploy.
+  - Merged to listing main as 5a73a19 on 2026-10-24 ~22:20 UTC; branch
+    and worktree removed. Release build queued; gateway auto-update swaps
+    the containers within ~5 min of the image landing. Outcome 1 tests
+    become checkable after the first 18:30 sweep (Sun 2026-10-25).
 - Experiments 2 (residential egress probe) and 3 (retry-across-challenge
   design) not started.
 
