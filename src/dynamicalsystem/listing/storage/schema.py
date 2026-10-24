@@ -15,7 +15,31 @@ from pathlib import Path
 from typing import Optional
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
+# Version 2: one row per maintenance sweep, so Cloudflare challenge rate and
+# sweep outcomes are measured from data rather than inferred from exit codes
+# in the journal. Shared by the fresh-install schema and the v1->v2 migration.
+SWEEP_RUNS_SQL = """
+CREATE TABLE IF NOT EXISTS sweep_runs (
+    run_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TEXT NOT NULL,               -- UTC ISO 8601
+    completed_at TEXT,
+    duration_seconds REAL,
+    dates_attempted INTEGER NOT NULL DEFAULT 0,
+    dates_scraped INTEGER NOT NULL DEFAULT 0,
+    new_dates_found INTEGER NOT NULL DEFAULT 0,
+    changes_detected INTEGER NOT NULL DEFAULT 0,
+    error_count INTEGER NOT NULL DEFAULT 0,
+    requests INTEGER NOT NULL DEFAULT 0,
+    challenges INTEGER NOT NULL DEFAULT 0,  -- Cloudflare challenges seen
+    last_cf_ray TEXT,
+    exit_code INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_sweep_runs_started_at ON sweep_runs(started_at);
+"""
 
 
 SCHEMA_SQL = """
@@ -188,13 +212,12 @@ SELECT
     MAX(showing_count) as final_showing_count
 FROM schedule_snapshots
 GROUP BY date;
-"""
+""" + SWEEP_RUNS_SQL
 
 
-# Future migrations
+# Migrations keyed by the version they bring the database to.
 MIGRATIONS = {
-    # Version 2 migrations would go here
-    # 2: "ALTER TABLE listings ADD COLUMN new_field TEXT;",
+    2: SWEEP_RUNS_SQL,
 }
 
 

@@ -18,7 +18,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from dynamicalsystem.listing.scraper.fetch import BFIFetcher
 from dynamicalsystem.listing.scraper.runtime import RuntimeFetcher
@@ -39,6 +39,10 @@ class ScrapeRunSummary:
     new_dates_found: int = 0
     changes_detected: int = 0
     errors: List[str] = None
+    dates_attempted: int = 0
+    requests: int = 0
+    challenges: int = 0            # Cloudflare challenges seen by the fetcher
+    last_cf_ray: Optional[str] = None
 
     def __post_init__(self):
         if self.errors is None:
@@ -105,8 +109,11 @@ def log_summary(summary: ScrapeRunSummary):
     logger.info(f"Started:          {summary.started_at}")
     logger.info(f"Completed:        {summary.completed_at}")
     logger.info(f"Duration:         {summary.duration_seconds:.1f}s")
+    logger.info(f"Dates attempted:  {summary.dates_attempted}")
     logger.info(f"Dates scraped:    {summary.dates_scraped}")
     logger.info(f"New dates found:  {summary.new_dates_found}")
+    logger.info(f"Requests:         {summary.requests} "
+                f"(Cloudflare challenges: {summary.challenges})")
     logger.info(f"Changes detected: {summary.changes_detected}")
     logger.info(f"Errors:           {len(summary.errors)}")
 
@@ -191,6 +198,7 @@ def run_daily_maintenance(dry_run: bool = False) -> ScrapeRunSummary:
 
     # 2. Get dates to scrape
     dates_to_scrape = manager.get_dates_to_scrape()
+    summary.dates_attempted = len(dates_to_scrape)
     logger.info(f"Found {len(dates_to_scrape)} dates to scrape")
 
     if dry_run:
@@ -239,8 +247,66 @@ def run_daily_maintenance(dry_run: bool = False) -> ScrapeRunSummary:
     end_time = datetime.now(ZoneInfo("UTC"))
     summary.completed_at = end_time.isoformat()
     summary.duration_seconds = (end_time - start_time).total_seconds()
+    _copy_fetch_stats(summary, fetcher)
 
     return summary
+
+
+def _copy_fetch_stats(summary: ScrapeRunSummary, fetcher) -> None:
+    """Copy request/challenge counters from the fetcher onto the summary."""
+    stats = getattr(fetcher, 'stats', None)
+    if stats is None:
+        return
+    for name in ('requests', 'challenges'):
+        try:
+            setattr(summary, name, int(getattr(stats, name, 0)))
+        except (TypeError, ValueError):
+            pass
+    cf_ray = getattr(stats, 'last_cf_ray', None)
+    summary.last_cf_ray = cf_ray if isinstance(cf_ray, str) else None
+
+
+def determine_exit_code(summary: ScrapeRunSummary) -> int:
+    """Map a run summary to the process exit code.
+
+    0 clean, 1 some dates failed, 2 at or above Config.MAX_ERROR_RATE.
+    Note: the rate denominator is dates_scraped (successes), which inflates
+    the rate when most dates fail. Kept as-is so exit codes stay comparable
+    with the journal history; the backlog tracks the fix.
+    """
+    logger = logging.getLogger(__name__)
+    if not summary.errors:
+        logger.info("Success: All scrapes completed")
+        return 0
+    error_rate = len(summary.errors) / max(summary.dates_scraped, 1)
+    if error_rate >= Config.MAX_ERROR_RATE:
+        logger.error(f"Critical: {error_rate:.0%} of scrapes failed")
+        return 2
+    logger.warning(f"Partial failure: {len(summary.errors)} errors")
+    return 1
+
+
+def record_sweep(summary: ScrapeRunSummary, exit_code: int) -> None:
+    """Persist the sweep outcome to sweep_runs. Never raises."""
+    logger = logging.getLogger(__name__)
+    try:
+        db = Database(Config.DB_PATH)
+        db.record_sweep_run({
+            'started_at': summary.started_at,
+            'completed_at': summary.completed_at or None,
+            'duration_seconds': summary.duration_seconds,
+            'dates_attempted': summary.dates_attempted,
+            'dates_scraped': summary.dates_scraped,
+            'new_dates_found': summary.new_dates_found,
+            'changes_detected': summary.changes_detected,
+            'error_count': len(summary.errors),
+            'requests': summary.requests,
+            'challenges': summary.challenges,
+            'last_cf_ray': summary.last_cf_ray,
+            'exit_code': exit_code,
+        })
+    except Exception as e:
+        logger.error(f"Could not record sweep run: {e}")
 
 
 def main(argv=None):
@@ -292,22 +358,11 @@ def main(argv=None):
         log_summary(summary)
 
         # Determine exit code
-        if summary.errors:
-            error_rate = len(summary.errors) / max(summary.dates_scraped, 1)
-            if error_rate >= Config.MAX_ERROR_RATE:
-                # More than 50% failed - critical
-                exit_code = 2
-                logger.error(f"Critical: {error_rate:.0%} of scrapes failed")
-            else:
-                # Some failed - partial
-                exit_code = 1
-                logger.warning(f"Partial failure: {len(summary.errors)} errors")
-        else:
-            exit_code = 0
-            logger.info("Success: All scrapes completed")
+        exit_code = determine_exit_code(summary)
 
-        # Ping healthcheck
+        # Record the sweep and ping healthcheck
         if not args.dry_run:
+            record_sweep(summary, exit_code)
             ping_healthcheck(exit_code == 0)
 
     except KeyboardInterrupt:

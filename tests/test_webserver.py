@@ -170,3 +170,40 @@ def test_health_endpoint(client):
     body = tc.get('/health').json()
     assert body['status'] == 'healthy'
     assert body['listings_count'] == 1
+
+
+def test_health_reports_sweep_accounting(client):
+    tc, db = client
+    db.insert_showings([make_showing('SHOW-1', 'Dune: Part Three')])
+    db.record_sweep_run({
+        'started_at': '2026-09-01T01:00:00+00:00', 'completed_at': '2026-09-01T01:02:00+00:00',
+        'dates_attempted': 37, 'dates_scraped': 0, 'error_count': 37,
+        'requests': 38, 'challenges': 37, 'last_cf_ray': 'a4fc2b87-LHR', 'exit_code': 2})
+    from datetime import datetime, timedelta, timezone
+    recent = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat(timespec='seconds')
+    db.record_sweep_run({'started_at': recent, 'requests': 38, 'challenges': 0, 'exit_code': 0})
+
+    body = tc.get('/health').json()
+
+    assert body['status'] == 'healthy'
+    assert body['last_sweep']['started_at'] == recent
+    assert body['last_sweep']['exit_code'] == 0
+    assert body['sweeps_14d']['sweeps'] >= 1
+    assert body['sweeps_14d']['requests'] >= 38
+
+
+def test_health_survives_missing_sweep_runs_table(client):
+    """Webserver may run against a database no sweep has migrated yet."""
+    import sqlite3
+    tc, db = client
+    db.insert_showings([make_showing('SHOW-1', 'Dune: Part Three')])
+    conn = sqlite3.connect(Config.DB_PATH)
+    conn.execute("DROP TABLE sweep_runs")
+    conn.commit()
+    conn.close()
+
+    body = tc.get('/health').json()
+
+    assert body['status'] == 'healthy'
+    assert body['last_sweep'] is None
+    assert body['sweeps_14d'] is None

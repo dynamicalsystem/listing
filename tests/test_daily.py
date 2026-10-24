@@ -1,5 +1,6 @@
 """Tests for daily maintenance script."""
 
+import logging
 import pytest
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -405,3 +406,91 @@ class TestRunDailyMaintenance:
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
+
+
+class TestSweepAccounting:
+    """Request/challenge counters flow from fetcher to summary to sweep_runs."""
+
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    @patch('dynamicalsystem.listing.maintenance.daily.BFIFetcher')
+    @patch('dynamicalsystem.listing.maintenance.daily.RuntimeFetcher')
+    @patch('dynamicalsystem.listing.maintenance.daily.ScheduleManager')
+    @patch('dynamicalsystem.listing.maintenance.daily.time.sleep')
+    def test_summary_carries_fetch_stats(self, mock_sleep, mock_sm, mock_rf, mock_fetcher,
+                                         mock_db, mock_schedule_manager):
+        from dynamicalsystem.listing.scraper.fetch import FetchStats
+        mock_sm.return_value = mock_schedule_manager
+        mock_fetcher.return_value.stats = FetchStats(requests=3, challenges=2,
+                                                     last_cf_ray='ray-9')
+
+        summary = run_daily_maintenance(dry_run=False)
+
+        assert summary.dates_attempted == 2
+        assert summary.dates_scraped == 2
+        assert summary.requests == 3
+        assert summary.challenges == 2
+        assert summary.last_cf_ray == 'ray-9'
+
+    def test_log_summary_reports_challenges(self, caplog):
+        summary = ScrapeRunSummary(
+            started_at='2026-10-24T21:42:13+00:00', completed_at='2026-10-24T21:44:00+00:00',
+            duration_seconds=107, dates_attempted=37, dates_scraped=0,
+            errors=['x'] * 37, requests=38, challenges=37)
+        with caplog.at_level(logging.INFO):
+            log_summary(summary)
+        assert 'Cloudflare challenges: 37' in caplog.text
+        assert 'Dates attempted:  37' in caplog.text
+
+    def test_determine_exit_code(self):
+        from dynamicalsystem.listing.maintenance.daily import determine_exit_code
+        clean = ScrapeRunSummary(started_at='t', dates_scraped=10)
+        partial = ScrapeRunSummary(started_at='t', dates_scraped=10, errors=['e'] * 2)
+        critical = ScrapeRunSummary(started_at='t', dates_scraped=0, errors=['e'] * 37)
+        assert determine_exit_code(clean) == 0
+        assert determine_exit_code(partial) == 1
+        assert determine_exit_code(critical) == 2
+
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    def test_record_sweep_writes_row(self, mock_db):
+        from dynamicalsystem.listing.maintenance.daily import record_sweep
+        summary = ScrapeRunSummary(
+            started_at='2026-10-24T21:42:13+00:00', completed_at='2026-10-24T21:44:00+00:00',
+            duration_seconds=107, dates_attempted=37, dates_scraped=0,
+            errors=['x'] * 37, requests=38, challenges=37, last_cf_ray='ray-1')
+
+        record_sweep(summary, exit_code=2)
+
+        row = mock_db.return_value.record_sweep_run.call_args[0][0]
+        assert row['exit_code'] == 2
+        assert row['error_count'] == 37
+        assert row['challenges'] == 37
+        assert row['dates_attempted'] == 37
+        assert row['last_cf_ray'] == 'ray-1'
+
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    def test_record_sweep_never_raises(self, mock_db, caplog):
+        from dynamicalsystem.listing.maintenance.daily import record_sweep
+        mock_db.return_value.record_sweep_run.side_effect = RuntimeError("disk full")
+        with caplog.at_level(logging.ERROR):
+            record_sweep(ScrapeRunSummary(started_at='t'), exit_code=0)
+        assert 'Could not record sweep run' in caplog.text
+
+    @patch('dynamicalsystem.listing.maintenance.daily.ping_healthcheck')
+    @patch('dynamicalsystem.listing.maintenance.daily.record_sweep')
+    @patch('dynamicalsystem.listing.maintenance.daily.run_daily_maintenance')
+    def test_main_records_sweep_when_not_dry_run(self, mock_run, mock_record, mock_ping):
+        mock_run.return_value = ScrapeRunSummary(
+            started_at='t', completed_at='t', dates_scraped=10, errors=['e'] * 2)
+
+        exit_code = main([])
+
+        assert exit_code == 1
+        mock_record.assert_called_once()
+        assert mock_record.call_args[0][1] == 1
+
+    @patch('dynamicalsystem.listing.maintenance.daily.record_sweep')
+    @patch('dynamicalsystem.listing.maintenance.daily.run_daily_maintenance')
+    def test_main_dry_run_does_not_record(self, mock_run, mock_record):
+        mock_run.return_value = ScrapeRunSummary(started_at='t', dates_scraped=1)
+        main(['--dry-run'])
+        mock_record.assert_not_called()
