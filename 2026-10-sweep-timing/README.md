@@ -2,11 +2,11 @@
 loop: 2026-10-sweep-timing
 product: listing
 owner: dynamicalsystem
-status: Decide
+status: Act
 parent: null
 blocked-by: []
-worktrees: []
-prs: []
+worktrees: [tinsnip/sweep-timing (branch listing-sweep-1830)]
+prs: [https://github.com/dynamicalsystem/tinsnip/pull/14]
 triggers:
   - when: tinsnip timer-schedule-labels reaches Closed
     then: "replace the hand-edited OnCalendar with the dockerfile LABEL org.dynamicalsystem.timer.maintain and record that the hand edit is redundant"
@@ -18,7 +18,7 @@ triggers:
 
 ## Status
 
-Decide
+Act
 
 **Owner:** dynamicalsystem
 
@@ -143,7 +143,10 @@ Decided 2026-10-24 by Simon:
 
 ## Action
 
-Not started. Plan:
+2026-10-24: tinsnip PR opened, https://github.com/dynamicalsystem/tinsnip/pull/14 (branch listing-sweep-1830,
+worktree ~/work/tinsnip/sweep-timing). On-box restart remains Simon's step.
+
+Plan:
 
 - tinsnip: change hosts/gateway/listing-maintain.timer OnCalendar to
   "*-*-* 18:30:00 Europe/London" and the Description/comment; PR to main.
