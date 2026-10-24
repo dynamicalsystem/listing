@@ -1,6 +1,6 @@
 """Data models for web server."""
 
-from typing import Optional
+from typing import Any, Dict, Optional
 from pydantic import BaseModel
 
 
@@ -111,3 +111,6 @@ class HealthInfo(BaseModel):
     listings_count: int = 0
     oldest_listing: Optional[str] = None
     newest_listing: Optional[str] = None
+    # Sweep accounting (schema v2); None until the first recorded sweep
+    last_sweep: Optional[Dict[str, Any]] = None
+    sweeps_14d: Optional[Dict[str, Any]] = None

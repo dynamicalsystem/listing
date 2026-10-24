@@ -283,3 +283,40 @@ def test_schedule_changes_foreign_keys(temp_db):
     assert cursor.fetchone()[0] == 1
 
     conn.close()
+
+
+def test_fresh_database_has_sweep_runs_table(temp_db):
+    """Schema v2 creates sweep_runs on a fresh install."""
+    init_database(temp_db)
+    conn = sqlite3.connect(temp_db)
+    try:
+        names = {r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
+        conn.close()
+    assert 'sweep_runs' in names
+
+
+def test_migrate_v1_database_adds_sweep_runs(temp_db):
+    """A v1 database (no sweep_runs) migrates to v2 and gains the table."""
+    init_database(temp_db)
+    conn = sqlite3.connect(temp_db)
+    try:
+        conn.execute("DROP TABLE sweep_runs")
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (1)")
+        conn.commit()
+    finally:
+        conn.close()
+    assert get_schema_version(temp_db) == 1
+
+    applied = migrate_database(temp_db)
+
+    assert applied == 1
+    assert get_schema_version(temp_db) == 2
+    conn = sqlite3.connect(temp_db)
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(sweep_runs)")}
+    finally:
+        conn.close()
+    assert {'started_at', 'requests', 'challenges', 'exit_code', 'dates_attempted'} <= cols

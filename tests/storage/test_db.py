@@ -477,3 +477,60 @@ def test_insert_showings_refreshes_availability_on_existing(db, sample_showing):
     assert after['availability_status'] == 'L'
     assert after['movie_title'] == before['movie_title']
     assert after['scraped_at'] == before['scraped_at']  # first-seen preserved
+
+
+class TestSweepRuns:
+    """sweep_runs recording and aggregation."""
+
+    def _run(self, started_at, **kw):
+        base = dict(started_at=started_at, completed_at=started_at, duration_seconds=120.0,
+                    dates_attempted=37, dates_scraped=37, new_dates_found=0,
+                    changes_detected=2, error_count=0, requests=38, challenges=0,
+                    last_cf_ray='ray-1', exit_code=0)
+        base.update(kw)
+        return base
+
+    def test_record_and_read_back_last_run(self, db):
+        db.record_sweep_run(self._run('2026-10-23T01:00:00+00:00'))
+        db.record_sweep_run(self._run('2026-10-24T21:42:13+00:00', dates_scraped=0,
+                                      error_count=37, requests=38, challenges=37,
+                                      last_cf_ray='a4fc2b87-LHR', exit_code=2))
+
+        last = db.get_last_sweep_run()
+
+        assert last['started_at'] == '2026-10-24T21:42:13+00:00'
+        assert last['challenges'] == 37
+        assert last['exit_code'] == 2
+        assert last['last_cf_ray'] == 'a4fc2b87-LHR'
+
+    def test_stats_window_excludes_old_runs(self, db):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        recent = (now - timedelta(days=1)).isoformat(timespec='seconds')
+        recent2 = (now - timedelta(days=3)).isoformat(timespec='seconds')
+        old = (now - timedelta(days=20)).isoformat(timespec='seconds')
+        db.record_sweep_run(self._run(recent, challenges=5, exit_code=2))
+        db.record_sweep_run(self._run(recent2))
+        db.record_sweep_run(self._run(old, challenges=99, exit_code=2))
+
+        stats = db.get_sweep_stats(days=14)
+
+        assert stats['days'] == 14
+        assert stats['sweeps'] == 2
+        assert stats['failed_sweeps'] == 1
+        assert stats['challenged_sweeps'] == 1
+        assert stats['challenges'] == 5
+        assert stats['requests'] == 76
+
+    def test_stats_on_empty_table(self, db):
+        stats = db.get_sweep_stats()
+        assert stats['sweeps'] == 0
+        assert stats['challenges'] == 0
+        assert db.get_last_sweep_run() is None
+
+    def test_record_coerces_missing_optional_fields(self, db):
+        run_id = db.record_sweep_run({'started_at': '2026-10-24T18:30:00+00:00'})
+        assert run_id >= 1
+        last = db.get_last_sweep_run()
+        assert last['requests'] == 0 and last['challenges'] == 0
+        assert last['exit_code'] is None

@@ -151,13 +151,48 @@ def get_health_info(db_path: str) -> HealthInfo:
         else:
             status = "healthy"
 
+        last_sweep, sweeps_14d = _sweep_info(conn)
+
         return HealthInfo(
             status=status,
             last_scrape=last_scrape,
             last_scrape_status=last_scrape_status,
             listings_count=listings_count,
             oldest_listing=oldest_listing,
-            newest_listing=newest_listing
+            newest_listing=newest_listing,
+            last_sweep=last_sweep,
+            sweeps_14d=sweeps_14d,
         )
     finally:
         conn.close()
+
+
+def _sweep_info(conn: sqlite3.Connection):
+    """Last sweep and 14-day aggregate from sweep_runs.
+
+    Returns (None, None) if the table does not exist yet: the webserver reads
+    the database directly and may start before any sweep has applied the
+    v2 migration.
+    """
+    try:
+        row = conn.execute("""
+            SELECT started_at, completed_at, exit_code, dates_attempted,
+                   dates_scraped, error_count, requests, challenges, last_cf_ray
+            FROM sweep_runs ORDER BY started_at DESC LIMIT 1
+        """).fetchone()
+        last_sweep = dict(row) if row else None
+
+        row = conn.execute("""
+            SELECT
+                COUNT(*) AS sweeps,
+                COALESCE(SUM(CASE WHEN exit_code IS NOT NULL AND exit_code != 0 THEN 1 ELSE 0 END), 0) AS failed_sweeps,
+                COALESCE(SUM(CASE WHEN challenges > 0 THEN 1 ELSE 0 END), 0) AS challenged_sweeps,
+                COALESCE(SUM(challenges), 0) AS challenges,
+                COALESCE(SUM(requests), 0) AS requests
+            FROM sweep_runs
+            WHERE started_at >= datetime('now', '-14 days')
+        """).fetchone()
+        sweeps_14d = dict(row) if row else None
+        return last_sweep, sweeps_14d
+    except sqlite3.OperationalError:
+        return None, None

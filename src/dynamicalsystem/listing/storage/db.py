@@ -203,6 +203,75 @@ class Database:
         finally:
             conn.close()
 
+    def record_sweep_run(self, run: Dict) -> int:
+        """Record one maintenance sweep.
+
+        Args:
+            run: Keys matching sweep_runs columns (started_at required;
+                 completed_at, duration_seconds, dates_attempted,
+                 dates_scraped, new_dates_found, changes_detected,
+                 error_count, requests, challenges, last_cf_ray, exit_code).
+
+        Returns:
+            run_id of the inserted row
+        """
+        conn = self._get_connection()
+        try:
+            cursor = conn.execute("""
+                INSERT INTO sweep_runs (
+                    started_at, completed_at, duration_seconds,
+                    dates_attempted, dates_scraped, new_dates_found,
+                    changes_detected, error_count, requests, challenges,
+                    last_cf_ray, exit_code
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                run['started_at'], run.get('completed_at'), run.get('duration_seconds'),
+                int(run.get('dates_attempted') or 0), int(run.get('dates_scraped') or 0),
+                int(run.get('new_dates_found') or 0), int(run.get('changes_detected') or 0),
+                int(run.get('error_count') or 0), int(run.get('requests') or 0),
+                int(run.get('challenges') or 0), run.get('last_cf_ray'), run.get('exit_code'),
+            ))
+            conn.commit()
+            return cursor.lastrowid
+        finally:
+            conn.close()
+
+    def get_last_sweep_run(self) -> Optional[Dict]:
+        """Most recent sweep by started_at, or None."""
+        conn = self._get_connection()
+        try:
+            row = conn.execute("""
+                SELECT * FROM sweep_runs ORDER BY started_at DESC LIMIT 1
+            """).fetchone()
+            return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def get_sweep_stats(self, days: int = 14) -> Dict:
+        """Aggregate sweep outcomes over the last N days.
+
+        Returns:
+            dict with days, sweeps, failed_sweeps (exit_code != 0),
+            challenged_sweeps (challenges > 0), challenges, requests
+        """
+        conn = self._get_connection()
+        try:
+            row = conn.execute("""
+                SELECT
+                    COUNT(*) AS sweeps,
+                    COALESCE(SUM(CASE WHEN exit_code IS NOT NULL AND exit_code != 0 THEN 1 ELSE 0 END), 0) AS failed_sweeps,
+                    COALESCE(SUM(CASE WHEN challenges > 0 THEN 1 ELSE 0 END), 0) AS challenged_sweeps,
+                    COALESCE(SUM(challenges), 0) AS challenges,
+                    COALESCE(SUM(requests), 0) AS requests
+                FROM sweep_runs
+                WHERE started_at >= datetime('now', ? || ' days')
+            """, (f"-{int(days)}",)).fetchone()
+            result = dict(row)
+            result['days'] = days
+            return result
+        finally:
+            conn.close()
+
     def delete_old_listings(self, before_date: str) -> int:
         """Delete listings older than date.
 
