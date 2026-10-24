@@ -16,6 +16,24 @@ Durable observations and cross-loop triggers for the listing product.
 
 ## Observations
 
+- 2026-10-24: BFI emails (friend's sample of 2) arrived Thu 2026-10-08
+  17:31 UK and Mon 2026-10-19 before 18:02 UK. Email time is not site
+  publish time: Godzilla listed the same day, Dune wave 2 listed next
+  morning at the stated 09:00 on-sale, behind a queue. Full evidence and
+  the publish-day table are in 2026-10-sweep-timing Observations.
+
+- 2026-10-24: three of the four isolated 403 days (Sep 15, Sep 22, Oct 13)
+  are Tuesdays at 01:00 UTC, i.e. Monday night. Those failures are exactly
+  what blurs Monday-vs-Tuesday publish days. Coincidence, BFI maintenance,
+  or something on our side: unknown. 2026-10-sweep-timing moves the sweep
+  off that slot and will show whether the pattern follows the time or the
+  weekday.
+
+- 2026-10-24: a BFI title arrived as "Godzilla Minus Zero&nbsp;" and is
+  stored verbatim as a distinct movie_title (separate from "Godzilla Minus
+  Zero"), which also breaks the runtime join. HTML entities and trailing
+  whitespace should be normalised at parse time.
+
 - 2026-10-24: BFI intermittently answers the sweep with HTTP 403. In-window
   hits: Sep 15, 19, 22 (1 day each). Out of window: Oct 13, then Oct 15-22
   continuously (8 of 10 sweeps non-zero, 342 403-lines on Oct 15), clean
