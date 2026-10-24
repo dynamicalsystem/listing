@@ -2,11 +2,11 @@
 loop: 2026-10-scraper-egress
 product: listing
 owner: dynamicalsystem
-status: Orient
+status: Act
 parent: null
 blocked-by: []
-worktrees: []
-prs: []
+worktrees: [listing/scraper-egress (branch egress/instrument-challenges)]
+prs: [https://github.com/dynamicalsystem/listing/pull/1]
 triggers: []
 ---
 
@@ -14,7 +14,7 @@ triggers: []
 
 ## Status
 
-Orient
+Act (experiment 1); Decision still pending experiments 2 and 3
 
 **Owner:** dynamicalsystem
 
@@ -119,7 +119,29 @@ Pending. Experiments to run before deciding:
 
 ## Action
 
-Not started.
+- 2026-10-24 experiment 1 (instrument), PR
+  https://github.com/dynamicalsystem/listing/pull/1 from worktree
+  ~/work/listing/scraper-egress, branch egress/instrument-challenges:
+  - fetch.py detects a Cloudflare challenge on 403 (cf-mitigated header or
+    "Just a moment" body), logs cf-ray and cf-mitigated, raises
+    CloudflareChallenge, counts requests and challenges per fetcher.
+  - schema v2 adds sweep_runs (one row per sweep: dates attempted and
+    scraped, errors, requests, challenges, last cf-ray, exit code); same
+    SQL for fresh installs and the v1->v2 migration, which runs when the
+    maintain container next constructs Database().
+  - daily.py: summary carries the counters; exit-code logic extracted to
+    determine_exit_code with the formula deliberately unchanged so
+    2026-10-sweep-timing's exit-code measurement stays comparable;
+    record_sweep writes the row and never raises.
+  - /health gains last_sweep and sweeps_14d, null until the first migrated
+    sweep so the webserver can start first.
+  - Verified: 174 tests pass (21 new); migration run against a copy of the
+    production database (v1->v2, 160 listings intact); one live request
+    through the new code from the Mac: 200, cf-ray recorded.
+  - Awaiting review/merge. Outcome 1 tests become checkable after the
+    first 18:30 sweep following deploy.
+- Experiments 2 (residential egress probe) and 3 (retry-across-challenge
+  design) not started.
 
 ## Outcomes
 
