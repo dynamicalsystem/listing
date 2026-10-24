@@ -8,6 +8,8 @@ blocked-by: []
 worktrees: []
 prs: []
 triggers:
+  - when: tinsnip timer-schedule-labels reaches Closed
+    then: "replace the hand-edited OnCalendar with the dockerfile LABEL org.dynamicalsystem.timer.maintain and record that the hand edit is redundant"
   - when: 2026-10-sweep-timing has 14 days of 18:30 sweeps recorded
     then: "decide whether Signal push is demonstrably needed (see backlog trigger on push latency); until then an evening reading habit is the assumed delivery"
 ---
@@ -132,6 +134,12 @@ Decided 2026-10-24 by Simon:
    signal the search results do not (whatson homepage banner, booking-flow
    holding page). Knowledge outcome; decide afterwards whether it is worth
    scraping.
+5. (2026-10-24, later) The sweep time is product knowledge but lives in
+   tinsnip. Agreed direction: the product declares its schedule as an OCI
+   image label and tinsnip renders the timer drop-in. That is the tinsnip
+   loop timer-schedule-labels (tinsnip control plane). It does not block
+   this loop: the 18:30 change ships as a direct edit first and the label
+   supersedes it when that loop closes (trigger above).
 
 ## Action
 
@@ -146,6 +154,9 @@ Not started. Plan:
   boot, so no gap on the switch-over day; the 02:00 firing on the day of
   the change should be allowed to happen before the restart.
 - Record the first 18:30 exit code and the journal 403 count here.
+- Follow-on: tinsnip timer-schedule-labels replaces the hand edit with
+  LABEL org.dynamicalsystem.timer.maintain="*-*-* 18:30:00 Europe/London"
+  in the listing dockerfile.
 
 ## Outcomes
 
