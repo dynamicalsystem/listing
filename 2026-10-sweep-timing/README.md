@@ -127,7 +127,7 @@ settle that: the 403 is a Cloudflare challenge aimed at the gateway IP and
 fires at any hour, so the time of day is not a lever on it. The 403-rate
 outcome test stays, as a measurement of how often the sweep is challenged,
 but the "Tuesday pattern" is now weak evidence at best. Getting past the
-challenge is a separate problem (scraper egress), raised in the backlog.
+challenge is a separate problem, opened as [[2026-10-scraper-egress]].
 
 Cost of the change: feed items surface ~16.5 hours earlier than subscribers
 are used to; no guid, URL or payload change, so not a breaking change under

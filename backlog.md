@@ -39,12 +39,8 @@ Durable observations and cross-loop triggers for the listing product.
   fetcher code, same URL, gateway 403 vs Mac 200, 14 s apart. Not BFI rate
   limiting, not time of day (hit at 01:00 and 21:42 UTC). History: Sep 15,
   19, 22; Oct 13; Oct 15-22 continuously; Oct 24 evening. Backoff and
-  jitter will not help. Candidate loop "scraper egress": options are a
-  residential or home egress for the sweep (Simon's network, or the agent
-  box if its IP class differs), solving the challenge with a real browser
-  (heavy, fragile), or asking BFI/Cloudflare for an allowlist. First
-  experiment: log cf-ray and cf-mitigated on every 403 so the challenge
-  rate is measured, not inferred from exit codes.
+  jitter will not help. Agent box (same OCI region, fresh IP) is challenged
+  too, so it is the IP class. Opened as 2026-10-scraper-egress.
 
 - 2026-10-24: the sweep's failure summary reports impossible percentages
   ("Critical: 438% of scrapes failed" on Oct 15; 126-204% on other days).
