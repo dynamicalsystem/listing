@@ -12,9 +12,42 @@ Durable observations and cross-loop triggers for the listing product.
 
 - [fired 2026-09-10] when: 2026-09-deploy-gateway reaches Closed
   then: start the 30-day soak test -> opened 2026-09-soak-test (verify on
-  or after 2026-10-08)
+  or after 2026-10-08); closed 2026-10-24, Succeeded
 
 ## Observations
+
+- 2026-10-24: BFI intermittently answers the sweep with HTTP 403. In-window
+  hits: Sep 15, 19, 22 (1 day each). Out of window: Oct 13, then Oct 15-22
+  continuously (8 of 10 sweeps non-zero, 342 403-lines on Oct 15), clean
+  again from Oct 23 with no change shipped. Looks like rate limiting or
+  bot blocking of the curl_cffi fingerprint rather than an outage. Candidate
+  loop: characterise the 403 pattern (time of day, request count before
+  first 403, which paths) before deciding on backoff, jitter, or spreading
+  the sweep.
+
+- 2026-10-24: the sweep's failure summary reports impossible percentages
+  ("Critical: 438% of scrapes failed" on Oct 15; 126-204% on other days).
+  The numerator is counting retries or per-date failures against a
+  denominator of scheduled dates. Exit code 2 is derived from this number,
+  so the critical threshold is firing on a wrong figure.
+
+- 2026-10-24: when the horizon scan fails (403), the sweep goes on to
+  attempt dates already in the past ("Failed to scrape 2026-09-08" logged
+  on Oct 22; 2026-09-18 on Oct 13). The fallback schedule is not pruned to
+  today onward. Harmless for the public page (prune still runs) but it
+  inflates the failure count above and wastes requests against a host that
+  is already refusing us.
+
+- 2026-10-24: podman-auto-update.service on gateway failed Oct 10, Oct 23,
+  Oct 24 with "container <id> does not exist in database". A manual
+  --dry-run at 20:35 UTC lists gazette/festers/listing fine, and all
+  containers were "Up 19 minutes", so a restart may have raced the timer.
+  Worth watching: if auto-update stays broken, fixes merged to main will
+  not reach the box.
+
+- 2026-10-24: every listing-maintain journal line appears twice under two
+  PIDs. Probably stdout plus a journald/syslog handler in the container, or
+  two logging handlers. Doubles log volume and every grep count.
 
 - 2026-09-12: the daily feed only lists showings first seen in the last
   24h; availability refreshes deliberately leave scraped_at alone. So a
