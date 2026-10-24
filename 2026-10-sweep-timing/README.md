@@ -5,7 +5,7 @@ owner: dynamicalsystem
 status: Act
 parent: null
 blocked-by: []
-worktrees: [tinsnip/sweep-timing (branch listing-sweep-1830)]
+worktrees: []
 prs: [https://github.com/dynamicalsystem/tinsnip/pull/14]
 triggers:
   - when: tinsnip timer-schedule-labels reaches Closed
@@ -144,7 +144,9 @@ Decided 2026-10-24 by Simon:
 ## Action
 
 2026-10-24: tinsnip PR opened, https://github.com/dynamicalsystem/tinsnip/pull/14 (branch listing-sweep-1830,
-worktree ~/work/tinsnip/sweep-timing). On-box restart remains Simon's step.
+worktree ~/work/tinsnip/sweep-timing). Merged to tinsnip main as cce0fa2
+the same evening; branch and worktree removed. On-box pull, daemon-reload
+and timer restart remain Simon's step.
 
 Plan:
 
