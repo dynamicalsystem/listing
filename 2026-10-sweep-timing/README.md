@@ -83,6 +83,21 @@ the gateway journal, and a live BFI fetch. Times UTC unless marked UK.
 - Render-time filtering: the public page, feed and upcoming_showings view
   all filter showing_date >= date('now'), so prune time does not affect
   what subscribers see. The feed window is "scraped in the last 24 hours".
+- 2026-10-24 21:42 UTC switch-over on the box (Claude, authorised by
+  Simon): git pull, daemon-reload, timer restart. Next elapse Sun
+  2026-10-25 18:30 UTC (= 18:30 UK after the clock change). Persistent=true
+  saw the Sat 18:30 slot as missed and fired a catch-up sweep immediately;
+  this was not predicted. The catch-up failed outright: exit 2, all 37
+  dates 403, 91 403-lines, finished 21:44 UTC. Database untouched; health
+  afterwards: {"status":"healthy","last_scrape":"2026-10-24T21:45:02.426743+00:00","last_scrape_status":"partial","listings_count":160,"oldest_listing":"2026-10-24","newest_listing":"2027-01-07"}
+- 2026-10-24 21:45 UTC cause of the 403s established. One request for the
+  Nov 5 page with the same fetcher code 14 s apart: gateway got HTTP 403
+  with server=cloudflare, cf-mitigated=challenge and a "Just a moment..."
+  JavaScript challenge body; Simon's Mac got 200 with the searchResults
+  payload. So the 403 is Cloudflare bot management challenging the
+  gateway's datacenter IP, not BFI rate limiting and not a time-of-day
+  effect. The 2026-09-deploy-gateway loop flagged OCI IP-range 403s in
+  September; this is the same mechanism, intermittent.
 - The timer is not in the listing repo. It is tinsnip
   hosts/gateway/listing-maintain.timer, installed on the box by install.sh
   as ~/.config/systemd/user/listing-maintain.timer, OnCalendar
@@ -106,11 +121,13 @@ the pre-sale signal for queue releases comes from subscribing to the BFI
 emails directly. Precision on the publish hour is not needed; an evening
 sweep is after it in every observed case.
 
-Moving the sweep also moves it off 01:00 UTC, where every 403 streak has
-started (Sep 15, Sep 19, Sep 22, Oct 13, Oct 15-22; three of the four
-isolated days are Tuesdays). That may be coincidence; the loop will measure
-the 403 rate at the new time against the 01:00 baseline (3 of 30 days in
-the soak window; 8 of 10 in the Oct 13-22 streak).
+Moving the sweep also moves it off 01:00 UTC, where every 403 streak had
+started. The 21:42 UTC catch-up sweep and the paired probe (Observations)
+settle that: the 403 is a Cloudflare challenge aimed at the gateway IP and
+fires at any hour, so the time of day is not a lever on it. The 403-rate
+outcome test stays, as a measurement of how often the sweep is challenged,
+but the "Tuesday pattern" is now weak evidence at best. Getting past the
+challenge is a separate problem (scraper egress), raised in the backlog.
 
 Cost of the change: feed items surface ~16.5 hours earlier than subscribers
 are used to; no guid, URL or payload change, so not a breaking change under
@@ -180,8 +197,9 @@ Tests:
 - [ ] Public page shows no past-dated showings when checked between
       09:00 and 18:00 UK (before the sweep has pruned)
 - [ ] /health reports healthy with last_scrape within 24h on day 14
-- [ ] 403 rate over the first 14 days at 18:30 recorded alongside the
-      01:00 baseline (3/30 and 8/10) and the Tuesday pattern checked
+- [ ] Cloudflare-challenge rate over the first 14 days at 18:30 recorded
+      alongside the 01:00 baseline (3/30 and 8/10); the 21:42 UTC catch-up
+      sweep on 2026-10-24 is not one of the 14
 
 ### Outcome 3: We know whether the website carries a pre-sale signal
 

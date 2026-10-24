@@ -23,25 +23,28 @@ Durable observations and cross-loop triggers for the listing product.
   the publish-day table are in 2026-10-sweep-timing Observations.
 
 - 2026-10-24: three of the four isolated 403 days (Sep 15, Sep 22, Oct 13)
-  are Tuesdays at 01:00 UTC, i.e. Monday night. Those failures are exactly
-  what blurs Monday-vs-Tuesday publish days. Coincidence, BFI maintenance,
-  or something on our side: unknown. 2026-10-sweep-timing moves the sweep
-  off that slot and will show whether the pattern follows the time or the
-  weekday.
+  were Tuesdays at 01:00 UTC. Now that the cause is a Cloudflare IP
+  challenge that also fired on a Saturday evening, this is weak evidence;
+  kept only because those failures blur the Monday-vs-Tuesday publish
+  days in 2026-10-sweep-timing.
 
 - 2026-10-24: a BFI title arrived as "Godzilla Minus Zero&nbsp;" and is
   stored verbatim as a distinct movie_title (separate from "Godzilla Minus
   Zero"), which also breaks the runtime join. HTML entities and trailing
   whitespace should be normalised at parse time.
 
-- 2026-10-24: BFI intermittently answers the sweep with HTTP 403. In-window
-  hits: Sep 15, 19, 22 (1 day each). Out of window: Oct 13, then Oct 15-22
-  continuously (8 of 10 sweeps non-zero, 342 403-lines on Oct 15), clean
-  again from Oct 23 with no change shipped. Looks like rate limiting or
-  bot blocking of the curl_cffi fingerprint rather than an outage. Candidate
-  loop: characterise the 403 pattern (time of day, request count before
-  first 403, which paths) before deciding on backoff, jitter, or spreading
-  the sweep.
+- 2026-10-24: the sweep's HTTP 403s are Cloudflare bot-management
+  challenges against the gateway's datacenter IP (cf-mitigated=challenge,
+  "Just a moment..." body), confirmed 21:45 UTC by a paired probe: same
+  fetcher code, same URL, gateway 403 vs Mac 200, 14 s apart. Not BFI rate
+  limiting, not time of day (hit at 01:00 and 21:42 UTC). History: Sep 15,
+  19, 22; Oct 13; Oct 15-22 continuously; Oct 24 evening. Backoff and
+  jitter will not help. Candidate loop "scraper egress": options are a
+  residential or home egress for the sweep (Simon's network, or the agent
+  box if its IP class differs), solving the challenge with a real browser
+  (heavy, fragile), or asking BFI/Cloudflare for an allowlist. First
+  experiment: log cf-ray and cf-mitigated on every 403 so the challenge
+  rate is measured, not inferred from exit codes.
 
 - 2026-10-24: the sweep's failure summary reports impossible percentages
   ("Critical: 438% of scrapes failed" on Oct 15; 126-204% on other days).
