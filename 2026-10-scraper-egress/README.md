@@ -139,8 +139,10 @@ Pending. Experiments to run before deciding:
     production database (v1->v2, 160 listings intact); one live request
     through the new code from the Mac: 200, cf-ray recorded.
   - Merged to listing main as 5a73a19 on 2026-10-24 ~22:20 UTC; branch
-    and worktree removed. Release build queued; gateway auto-update swaps
-    the containers within ~5 min of the image landing. Outcome 1 tests
+    and worktree removed. Release build succeeded 22:21 UTC; gateway
+    auto-update deployed revision 5a73a19 by 22:24 UTC; /health serves
+    last_sweep=null and sweeps_14d=null as designed until the first
+    migrated sweep. Outcome 1 tests
     become checkable after the first 18:30 sweep (Sun 2026-10-25).
 - Experiments 2 (residential egress probe) and 3 (retry-across-challenge
   design) not started.
