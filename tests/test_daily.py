@@ -494,3 +494,172 @@ class TestSweepAccounting:
         mock_run.return_value = ScrapeRunSummary(started_at='t', dates_scraped=1)
         main(['--dry-run'])
         mock_record.assert_not_called()
+
+
+class TestWhenDue:
+    """Hourly --when-due mode: window, due check, abort on challenge."""
+
+    def _utc(self, iso):
+        return datetime.fromisoformat(iso)
+
+    def test_window_start_after_opening_is_today(self):
+        from dynamicalsystem.listing.maintenance.daily import window_start
+        # 2026-10-25 19:30 UK (GMT, clocks went back that morning) = 19:30 UTC
+        ws = window_start(self._utc('2026-10-25T19:30:00+00:00'), '18:00', 'Europe/London')
+        assert ws.isoformat() == '2026-10-25T18:00:00+00:00'
+
+    def test_window_start_before_opening_is_yesterday(self):
+        from dynamicalsystem.listing.maintenance.daily import window_start
+        # 2026-10-25 09:30 UK is before 18:00, so the window opened 2026-10-24
+        # 18:00 UK, which was still BST: 17:00 UTC.
+        ws = window_start(self._utc('2026-10-25T09:30:00+00:00'), '18:00', 'Europe/London')
+        assert ws.isoformat() == '2026-10-24T17:00:00+00:00'
+
+    def test_window_start_respects_bst(self):
+        from dynamicalsystem.listing.maintenance.daily import window_start
+        # 2026-10-20 is BST: 18:00 UK = 17:00 UTC
+        ws = window_start(self._utc('2026-10-20T17:30:00+00:00'), '18:00', 'Europe/London')
+        assert ws.isoformat() == '2026-10-20T17:00:00+00:00'
+        ws = window_start(self._utc('2026-10-20T16:30:00+00:00'), '18:00', 'Europe/London')
+        assert ws.isoformat() == '2026-10-19T17:00:00+00:00'
+
+    @pytest.fixture
+    def db(self, tmp_path):
+        from dynamicalsystem.listing.storage.db import Database
+        return Database(str(tmp_path / 'due.db'))
+
+    def _row(self, started, **kw):
+        base = dict(started_at=started, outcome='full', exit_code=0, requests=38)
+        base.update(kw)
+        return base
+
+    def test_due_when_no_runs(self, db):
+        from dynamicalsystem.listing.maintenance.daily import is_full_sweep_due
+        due, reason = is_full_sweep_due(db, self._utc('2026-10-25T18:30:00+00:00'))
+        assert due and 'no completed full sweep' in reason
+
+    def test_not_due_after_completed_full_sweep_in_window(self, db):
+        from dynamicalsystem.listing.maintenance.daily import is_full_sweep_due
+        db.record_sweep_run(self._row('2026-10-25T18:30:05+00:00', exit_code=1))
+        due, reason = is_full_sweep_due(db, self._utc('2026-10-25T19:30:00+00:00'))
+        assert not due and 'completed at 2026-10-25T18:30:05' in reason
+
+    def test_due_again_once_next_window_opens(self, db):
+        from dynamicalsystem.listing.maintenance.daily import is_full_sweep_due
+        db.record_sweep_run(self._row('2026-10-25T18:30:05+00:00'))
+        due, _ = is_full_sweep_due(db, self._utc('2026-10-26T17:30:00+00:00'))  # 17:30 UK, before 18:00
+        assert not due
+        due, _ = is_full_sweep_due(db, self._utc('2026-10-26T18:30:00+00:00'))
+        assert due
+
+    def test_challenged_runs_do_not_count_as_attempts(self, db):
+        from dynamicalsystem.listing.maintenance.daily import is_full_sweep_due
+        for h in ('18', '19', '20', '21'):
+            db.record_sweep_run(self._row(f'2026-10-25T{h}:30:00+00:00', outcome='challenged',
+                                          requests=1, challenges=1))
+        due, reason = is_full_sweep_due(db, self._utc('2026-10-25T22:30:00+00:00'))
+        assert due and '4 challenged runs' in reason
+
+    def test_cap_on_critical_full_sweeps(self, db, monkeypatch):
+        from dynamicalsystem.listing.maintenance.daily import is_full_sweep_due
+        monkeypatch.setattr(Config, 'MAX_FULL_SWEEPS_PER_WINDOW', 2)
+        db.record_sweep_run(self._row('2026-10-25T18:30:00+00:00', exit_code=2))
+        due, _ = is_full_sweep_due(db, self._utc('2026-10-25T19:30:00+00:00'))
+        assert due
+        db.record_sweep_run(self._row('2026-10-25T19:30:00+00:00', exit_code=2))
+        due, reason = is_full_sweep_due(db, self._utc('2026-10-25T20:30:00+00:00'))
+        assert not due and 'cap 2 reached' in reason
+
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    @patch('dynamicalsystem.listing.maintenance.daily.BFIFetcher')
+    @patch('dynamicalsystem.listing.maintenance.daily.RuntimeFetcher')
+    @patch('dynamicalsystem.listing.maintenance.daily.ScheduleManager')
+    @patch('dynamicalsystem.listing.maintenance.daily.time.sleep')
+    def test_abort_on_challenge_stops_before_dates(self, mock_sleep, mock_sm, mock_rf,
+                                                   mock_fetcher, mock_db, mock_schedule_manager):
+        from dynamicalsystem.listing.scraper.fetch import CloudflareChallenge, FetchStats
+        mock_schedule_manager.update_horizon.side_effect = CloudflareChallenge(
+            'http://x', 403, 'ray-7', 'challenge')
+        mock_sm.return_value = mock_schedule_manager
+        mock_fetcher.return_value.stats = FetchStats(requests=1, challenges=1, last_cf_ray='ray-7')
+
+        summary = run_daily_maintenance(dry_run=False, abort_on_challenge=True)
+
+        assert summary.outcome == 'challenged'
+        assert summary.dates_attempted == 0
+        mock_schedule_manager.scrape_date.assert_not_called()
+        assert summary.requests == 1 and summary.challenges == 1
+        assert summary.completed_at
+
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    @patch('dynamicalsystem.listing.maintenance.daily.BFIFetcher')
+    @patch('dynamicalsystem.listing.maintenance.daily.RuntimeFetcher')
+    @patch('dynamicalsystem.listing.maintenance.daily.ScheduleManager')
+    @patch('dynamicalsystem.listing.maintenance.daily.time.sleep')
+    def test_without_abort_challenge_continues_to_dates(self, mock_sleep, mock_sm, mock_rf,
+                                                        mock_fetcher, mock_db, mock_schedule_manager):
+        from dynamicalsystem.listing.scraper.fetch import CloudflareChallenge
+        mock_schedule_manager.update_horizon.side_effect = CloudflareChallenge(
+            'http://x', 403, 'ray-7', 'challenge')
+        mock_sm.return_value = mock_schedule_manager
+
+        summary = run_daily_maintenance(dry_run=False, abort_on_challenge=False)
+
+        assert summary.outcome == 'full'
+        assert mock_schedule_manager.scrape_date.call_count == 2
+        assert any(e.startswith('horizon_scan:') for e in summary.errors)
+
+    @patch('dynamicalsystem.listing.maintenance.daily.ping_healthcheck')
+    @patch('dynamicalsystem.listing.maintenance.daily.record_sweep')
+    @patch('dynamicalsystem.listing.maintenance.daily.run_daily_maintenance')
+    @patch('dynamicalsystem.listing.maintenance.daily.is_full_sweep_due')
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    def test_main_when_due_skips_if_not_due(self, mock_db, mock_due, mock_run, mock_record, mock_ping):
+        mock_due.return_value = (False, 'full sweep completed at t')
+        assert main(['--when-due']) == 0
+        mock_run.assert_not_called()
+        mock_record.assert_not_called()
+
+    @patch('dynamicalsystem.listing.maintenance.daily.ping_healthcheck')
+    @patch('dynamicalsystem.listing.maintenance.daily.record_sweep')
+    @patch('dynamicalsystem.listing.maintenance.daily.run_daily_maintenance')
+    @patch('dynamicalsystem.listing.maintenance.daily.is_full_sweep_due')
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    def test_main_when_due_challenged_exits_zero_and_records(self, mock_db, mock_due, mock_run,
+                                                             mock_record, mock_ping):
+        mock_due.return_value = (True, 'no completed full sweep')
+        mock_run.return_value = ScrapeRunSummary(started_at='t', completed_at='t',
+                                                 errors=['horizon_scan: challenge'],
+                                                 requests=1, challenges=1, outcome='challenged')
+        assert main(['--when-due']) == 0
+        mock_run.assert_called_once_with(dry_run=False, abort_on_challenge=True)
+        assert mock_record.call_args[0][1] == 0
+        mock_ping.assert_not_called()
+
+    @patch('dynamicalsystem.listing.maintenance.daily.ping_healthcheck')
+    @patch('dynamicalsystem.listing.maintenance.daily.record_sweep')
+    @patch('dynamicalsystem.listing.maintenance.daily.run_daily_maintenance')
+    @patch('dynamicalsystem.listing.maintenance.daily.is_full_sweep_due')
+    @patch('dynamicalsystem.listing.maintenance.daily.Database')
+    def test_main_when_due_full_sweep_uses_normal_exit_code(self, mock_db, mock_due, mock_run,
+                                                            mock_record, mock_ping):
+        mock_due.return_value = (True, 'no completed full sweep')
+        mock_run.return_value = ScrapeRunSummary(started_at='t', completed_at='t',
+                                                 dates_scraped=10, errors=['e'] * 2)
+        assert main(['--when-due']) == 1
+        mock_ping.assert_called_once_with(False)
+
+    @patch('dynamicalsystem.listing.maintenance.daily.record_sweep')
+    @patch('dynamicalsystem.listing.maintenance.daily.run_daily_maintenance')
+    def test_main_without_flag_is_unchanged(self, mock_run, mock_record):
+        mock_run.return_value = ScrapeRunSummary(started_at='t', dates_scraped=1)
+        main(['--dry-run'])
+        mock_run.assert_called_once_with(dry_run=True, abort_on_challenge=False)
+
+    def test_config_validates_window(self, monkeypatch):
+        assert Config.validate()
+        monkeypatch.setattr(Config, 'SWEEP_WINDOW_START', '25:00')
+        assert not Config.validate()
+        monkeypatch.setattr(Config, 'SWEEP_WINDOW_START', '18:00')
+        monkeypatch.setattr(Config, 'MAX_FULL_SWEEPS_PER_WINDOW', 0)
+        assert not Config.validate()

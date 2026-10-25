@@ -207,3 +207,38 @@ def test_health_survives_missing_sweep_runs_table(client):
     assert body['status'] == 'healthy'
     assert body['last_sweep'] is None
     assert body['sweeps_14d'] is None
+
+
+def test_health_reports_last_full_sweep_separately(client):
+    tc, db = client
+    db.insert_showings([make_showing('SHOW-1', 'Dune: Part Three')])
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    full_at = (now - timedelta(hours=26)).isoformat(timespec='seconds')
+    ch_at = (now - timedelta(hours=1)).isoformat(timespec='seconds')
+    db.record_sweep_run({'started_at': full_at, 'requests': 38, 'challenges': 0, 'exit_code': 0})
+    db.record_sweep_run({'started_at': ch_at, 'requests': 1, 'challenges': 1, 'exit_code': 0,
+                         'outcome': 'challenged'})
+
+    body = tc.get('/health').json()
+
+    assert body['last_sweep']['outcome'] == 'challenged'
+    assert body['last_full_sweep']['started_at'] == full_at
+    assert body['sweeps_14d'] == {'sweeps': 2, 'full_sweeps': 1, 'failed_sweeps': 0,
+                                  'challenged_sweeps': 1, 'challenges': 1, 'requests': 39}
+
+
+def test_health_survives_v2_table_without_outcome_column(client):
+    """A v2 database (table present, no outcome column) still serves health."""
+    import sqlite3
+    tc, db = client
+    db.insert_showings([make_showing('SHOW-1', 'Dune: Part Three')])
+    conn = sqlite3.connect(Config.DB_PATH)
+    conn.execute("ALTER TABLE sweep_runs DROP COLUMN outcome")
+    conn.commit()
+    conn.close()
+
+    body = tc.get('/health').json()
+
+    assert body['status'] == 'healthy'
+    assert body['last_sweep'] is None and body['last_full_sweep'] is None

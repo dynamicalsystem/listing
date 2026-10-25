@@ -312,11 +312,49 @@ def test_migrate_v1_database_adds_sweep_runs(temp_db):
 
     applied = migrate_database(temp_db)
 
-    assert applied == 1
-    assert get_schema_version(temp_db) == 2
+    assert applied == 2  # v1 -> v2 (table) -> v3 (outcome column)
+    assert get_schema_version(temp_db) == 3
     conn = sqlite3.connect(temp_db)
     try:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(sweep_runs)")}
     finally:
         conn.close()
-    assert {'started_at', 'requests', 'challenges', 'exit_code', 'dates_attempted'} <= cols
+    assert {'started_at', 'requests', 'challenges', 'exit_code', 'dates_attempted', 'outcome'} <= cols
+
+
+def test_migrate_v2_database_adds_outcome_column(temp_db):
+    """A v2 database (sweep_runs without outcome) migrates to v3 in place, keeping rows."""
+    from dynamicalsystem.listing.storage.schema import SWEEP_RUNS_SQL_V2
+    init_database(temp_db)
+    conn = sqlite3.connect(temp_db)
+    try:
+        conn.execute("DROP TABLE sweep_runs")
+        conn.executescript(SWEEP_RUNS_SQL_V2)
+        conn.execute("INSERT INTO sweep_runs (started_at, requests, challenges, exit_code) "
+                     "VALUES ('2026-10-24T21:42:13+00:00', 38, 37, 2)")
+        conn.execute("DELETE FROM schema_version")
+        conn.execute("INSERT INTO schema_version (version) VALUES (2)")
+        conn.commit()
+    finally:
+        conn.close()
+
+    applied = migrate_database(temp_db)
+
+    assert applied == 1
+    assert get_schema_version(temp_db) == 3
+    conn = sqlite3.connect(temp_db)
+    try:
+        row = conn.execute("SELECT started_at, challenges, outcome FROM sweep_runs").fetchone()
+    finally:
+        conn.close()
+    assert row == ('2026-10-24T21:42:13+00:00', 37, None)  # NULL outcome reads as 'full'
+
+
+def test_fresh_database_sweep_runs_has_outcome(temp_db):
+    init_database(temp_db)
+    conn = sqlite3.connect(temp_db)
+    try:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(sweep_runs)")}
+    finally:
+        conn.close()
+    assert 'outcome' in cols
