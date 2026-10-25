@@ -151,6 +151,13 @@ Decided 2026-10-24 by Simon:
    signal the search results do not (whatson homepage banner, booking-flow
    holding page). Knowledge outcome; decide afterwards whether it is worth
    scraping.
+6. (2026-10-25) Amended by [[2026-10-scraper-egress]] experiment 3: the
+   timer becomes hourly and the image runs --when-due, so "18:30" is now
+   expressed as a window opening at 18:00 UK with the first clear hourly
+   firing (18:30 on a healthy day) doing the sweep. Same intent, wider net
+   against Cloudflare challenges. Outcome 1 test 1 ("first 7 sweeps at the
+   new time exit 0") is read as the first 7 full sweeps; challenged hourly
+   runs exit 0 by design and are counted separately in sweep_runs.
 5. (2026-10-24, later) The sweep time is product knowledge but lives in
    tinsnip. Agreed direction: the product declares its schedule as an OCI
    image label and tinsnip renders the timer drop-in. That is the tinsnip

@@ -5,8 +5,8 @@ owner: dynamicalsystem
 status: Act
 parent: null
 blocked-by: []
-worktrees: []
-prs: [https://github.com/dynamicalsystem/listing/pull/1]
+worktrees: [listing/scraper-egress (egress/retry-when-due), tinsnip/sweep-timing (listing-hourly-when-due)]
+prs: [https://github.com/dynamicalsystem/listing/pull/1, https://github.com/dynamicalsystem/listing/pull/2, https://github.com/dynamicalsystem/tinsnip/pull/18]
 triggers: []
 ---
 
@@ -167,8 +167,25 @@ Signal push; rides 2026-10-sweep-timing's 14-day trigger.
     last_sweep=null and sweeps_14d=null as designed until the first
     migrated sweep. Outcome 1 tests
     become checkable after the first 18:30 sweep (Sun 2026-10-25).
-- Experiments 2 (residential egress probe) and 3 (retry-across-challenge
-  design) not started.
+- 2026-10-25 experiment 3 (retry across challenge) implemented:
+  - listing PR https://github.com/dynamicalsystem/listing/pull/2
+    (branch egress/retry-when-due): --when-due mode. Window opens daily at
+    LISTING_SWEEP_WINDOW_START (18:00 Europe/London). A firing that is not
+    due exits 0 with no request; a due firing runs the sweep but stops at
+    the first Cloudflare challenge on the horizon scan (outcome
+    'challenged', exit 0, one request) so the next hour retries; cap of 3
+    full sweeps per window. Schema v3 adds sweep_runs.outcome, with the v2
+    migration kept v2-shaped so v1->v3 and v2->v3 both work (production is
+    still v1 until its next sweep). /health gains last_full_sweep and
+    full_sweeps. 195 tests pass; v1->v3 run on a production copy.
+  - tinsnip PR https://github.com/dynamicalsystem/tinsnip/pull/18 (branch
+    listing-hourly-when-due): timer hourly at :30 Europe/London, container
+    Exec gains --when-due. MUST merge after the listing image has deployed;
+    on the old image the flag is an argparse error on every firing.
+  - Healthy-day cost unchanged (one full sweep at 18:30 UK); challenged day
+    costs 24 single requests. Week-long blocks not addressed.
+- Experiment 2 replacement (GitHub Actions ASN probe) and 4 (ask BFI) not
+  started.
 
 ## Outcomes
 
