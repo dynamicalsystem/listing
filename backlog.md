@@ -48,12 +48,15 @@ Durable observations and cross-loop triggers for the listing product.
   denominator of scheduled dates. Exit code 2 is derived from this number,
   so the critical threshold is firing on a wrong figure.
 
-- 2026-10-24: when the horizon scan fails (403), the sweep goes on to
-  attempt dates already in the past ("Failed to scrape 2026-09-08" logged
-  on Oct 22; 2026-09-18 on Oct 13). The fallback schedule is not pruned to
-  today onward. Harmless for the public page (prune still runs) but it
-  inflates the failure count above and wastes requests against a host that
-  is already refusing us.
+- 2026-10-24, sharpened 2026-10-25: the sweep attempts past dates on every
+  run, not only when the horizon scan fails. scrape_schedule is never
+  pruned (88 rows, 46 before today, back to 2026-09-07); the 2026-10-25
+  sweep attempted 82 dates for a 42-date horizon. Nearly half of all
+  requests go to days already gone. Harmless for the public page but it
+  doubles exposure to Cloudflare challenges and inflates the failure
+  percentage. Fix is small: prune scrape_schedule below today in cleanup
+  and filter get_dates_to_scrape to today onward. Candidate first act for
+  2026-10-scraper-egress after the retry mode has a few days of data.
 
 - 2026-10-24: podman-auto-update.service on gateway failed Oct 10, Oct 23,
   Oct 24 with "container <id> does not exist in database". A manual

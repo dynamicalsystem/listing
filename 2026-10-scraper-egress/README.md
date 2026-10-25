@@ -5,7 +5,7 @@ owner: dynamicalsystem
 status: Act
 parent: null
 blocked-by: []
-worktrees: [tinsnip/sweep-timing (listing-hourly-when-due)]
+worktrees: []
 prs: [https://github.com/dynamicalsystem/listing/pull/1, https://github.com/dynamicalsystem/listing/pull/2, https://github.com/dynamicalsystem/tinsnip/pull/18]
 triggers: []
 ---
@@ -191,6 +191,20 @@ Signal push; rides 2026-10-sweep-timing's 14-day trigger.
     the deployed revision label and the --help check were not read
     directly; the health field is the evidence. tinsnip PR 18 is now safe
     to merge; on-box restart is Simon's step.
+- 2026-10-25: tinsnip PR 18 merged (1d3eed3) and applied on the box at
+  21:35 UTC. The 18:30 UTC sweep that day, already on image 7e350ad under
+  the old daily timer, was the first measured run: outcome full, exit 0,
+  82 dates, 83 requests, 0 challenges, cf-ray recorded, schema migrated
+  v1->v3 live. The hourly catch-up at 21:35 reported "Not due" and made no
+  request. Outcome 1 tests now checkable from /health.
+- 2026-10-25 finding from the first measured sweep: 82 dates attempted but
+  the horizon has only 42. scrape_schedule holds 88 rows of which 46 are
+  past dates (back to 2026-09-07); cleanup prunes listings but never
+  scrape_schedule, so ~40 requests per sweep hit days that have already
+  happened. That is nearly half of our request volume against the host
+  that challenges us. Cheap fix: prune scrape_schedule below today in
+  cleanup and filter get_dates_to_scrape to today onward. Supersedes the
+  narrower backlog observation about past dates on horizon failure.
 - Experiment 2 replacement (GitHub Actions ASN probe) and 4 (ask BFI) not
   started.
 

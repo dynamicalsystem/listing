@@ -98,6 +98,16 @@ the gateway journal, and a live BFI fetch. Times UTC unless marked UK.
   gateway's datacenter IP, not BFI rate limiting and not a time-of-day
   effect. The 2026-09-deploy-gateway loop flagged OCI IP-range 403s in
   September; this is the same mechanism, intermittent.
+- 2026-10-25 18:30:01 UTC: first sweep on the new schedule (daily 18:30
+  timer, image 7e350ad). Exit 0, 82 dates attempted, 82 scraped, 0 errors,
+  83 requests, 0 Cloudflare challenges, cf-ray a50350dc...-LHR. Ran the
+  v1->v3 migration live and wrote the first sweep_runs row. Cleanup pruned
+  4 listings. Horizon: 42 dates with showings, 0 new. Sunday: nothing new
+  published, consistent with the weekday-only pattern.
+- 2026-10-25 21:35 UTC: tinsnip 1d3eed3 pulled on the box, daemon-reload,
+  timer restarted: now hourly at :30 Europe/London with --when-due.
+  Persistent catch-up fired at once, found the 18:30 full sweep in the
+  window, exited 0 with zero requests. Next firing 22:30 UTC.
 - The timer is not in the listing repo. It is tinsnip
   hosts/gateway/listing-maintain.timer, installed on the box by install.sh
   as ~/.config/systemd/user/listing-maintain.timer, OnCalendar
@@ -192,8 +202,8 @@ Plan:
 ### Outcome 1: Same-day BFI publishes reach the feed the same evening
 
 Tests:
-- [ ] listing-maintain.timer next-elapse is 18:30 Europe/London and the
-      first 7 sweeps at the new time exit 0
+- [ ] listing-maintain.timer fires hourly with --when-due and the first 7
+      full sweeps (one per 18:00-UK window) exit 0: 1/7 (2026-10-25 exit 0)
 - [ ] The first "added" or new-date detection after the switch corresponds
       to a BFI publish that day (cross-checked against a BFI email where one
       exists), not one from the day before
