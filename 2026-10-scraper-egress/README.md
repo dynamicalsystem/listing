@@ -109,13 +109,36 @@ Pending. Experiments to run before deciding:
 1. Instrument the fetcher: log cf-ray and cf-mitigated on 403, count
    challenges per sweep, surface in /health. Product PR; no behaviour
    change.
-2. Residential egress probe: stand up a SOCKS proxy on a residential box on
-   the WireGuard mesh and run the paired probe from the gateway through it
-   for 7 days at 18:30 UK. Record pass rate and the box's availability at
-   that hour.
-3. Retry-across-challenge: design the hourly retry (bound, jitter, stop
-   time) and estimate from the Oct history how many challenge days it
-   would have recovered.
+2. ABANDONED 2026-10-25 (Simon): no always-on residential compute; only
+   laptops that sleep and hibernate, so the sweep would inherit their
+   availability. Replaced by: ASN probe from GitHub Actions. A scheduled
+   workflow runs the paired probe a few times a day for 7 days from
+   Microsoft-hosted runners and records cf-mitigated per run. Answers
+   whether Cloudflare flags OCI specifically or hosting ASNs generally; if
+   runners pass consistently, "sweep in Actions, push results to the
+   gateway" becomes a candidate.
+3. Retry-across-challenge, now the primary mitigation. Candidate design:
+   hourly timer; each run makes one probe request first and exits if
+   challenged; if clear and no successful full sweep since 17:30 UK, run
+   the full sweep; otherwise exit. Healthy cost: one full sweep plus 23
+   single requests per day. Recovers hour-scale flaps, not week-long
+   blocks. Estimate from the Oct history how many challenge days it would
+   have recovered. Interacts with 2026-10-sweep-timing's 18:30 decision
+   ("first clear hour after 17:30" is the same intent).
+4. Ask BFI's digital team for an allowlist or a feed: ~40 requests/day for
+   a personal listings feed. Zero cost, low odds. Claude drafts, Simon
+   sends.
+5. Held: headless Chromium on the gateway to earn cf_clearance and hand
+   the cookie to curl_cffi. Works today, fragile, heavy image, and it is
+   deliberately defeating bot management on a third party's site. Revisit
+   only if 2 and 3 fail.
+
+Reframe recorded 2026-10-25: the outcome that matters is "don't miss
+announcements". The website sweep delivers structured listings; the
+announcement signal is the BFI email, which Cloudflare cannot block. A
+machine-readable email path would make a challenge week a freshness
+problem rather than a missed announcement. Same territory as the parked
+Signal push; rides 2026-10-sweep-timing's 14-day trigger.
 
 ## Action
 
