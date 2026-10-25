@@ -151,7 +151,7 @@ def get_health_info(db_path: str) -> HealthInfo:
         else:
             status = "healthy"
 
-        last_sweep, sweeps_14d = _sweep_info(conn)
+        last_sweep, last_full_sweep, sweeps_14d = _sweep_info(conn)
 
         return HealthInfo(
             status=status,
@@ -161,31 +161,41 @@ def get_health_info(db_path: str) -> HealthInfo:
             oldest_listing=oldest_listing,
             newest_listing=newest_listing,
             last_sweep=last_sweep,
+            last_full_sweep=last_full_sweep,
             sweeps_14d=sweeps_14d,
         )
     finally:
         conn.close()
 
 
-def _sweep_info(conn: sqlite3.Connection):
-    """Last sweep and 14-day aggregate from sweep_runs.
+_SWEEP_ROW = """
+    SELECT started_at, completed_at, exit_code, COALESCE(outcome, 'full') AS outcome,
+           dates_attempted, dates_scraped, error_count, requests, challenges, last_cf_ray
+    FROM sweep_runs
+"""
 
-    Returns (None, None) if the table does not exist yet: the webserver reads
-    the database directly and may start before any sweep has applied the
-    v2 migration.
+
+def _sweep_info(conn: sqlite3.Connection):
+    """Last run, last full sweep and 14-day aggregate from sweep_runs.
+
+    Returns (None, None, None) if the table or the outcome column does not
+    exist yet: the webserver reads the database directly and may start before
+    any sweep has applied the v2/v3 migrations.
     """
     try:
-        row = conn.execute("""
-            SELECT started_at, completed_at, exit_code, dates_attempted,
-                   dates_scraped, error_count, requests, challenges, last_cf_ray
-            FROM sweep_runs ORDER BY started_at DESC LIMIT 1
-        """).fetchone()
+        row = conn.execute(_SWEEP_ROW + " ORDER BY started_at DESC LIMIT 1").fetchone()
         last_sweep = dict(row) if row else None
+
+        row = conn.execute(
+            _SWEEP_ROW + " WHERE COALESCE(outcome, 'full') = 'full' ORDER BY started_at DESC LIMIT 1"
+        ).fetchone()
+        last_full_sweep = dict(row) if row else None
 
         row = conn.execute("""
             SELECT
                 COUNT(*) AS sweeps,
-                COALESCE(SUM(CASE WHEN exit_code IS NOT NULL AND exit_code != 0 THEN 1 ELSE 0 END), 0) AS failed_sweeps,
+                COALESCE(SUM(CASE WHEN COALESCE(outcome, 'full') = 'full' THEN 1 ELSE 0 END), 0) AS full_sweeps,
+                COALESCE(SUM(CASE WHEN COALESCE(outcome, 'full') = 'full' AND exit_code IS NOT NULL AND exit_code != 0 THEN 1 ELSE 0 END), 0) AS failed_sweeps,
                 COALESCE(SUM(CASE WHEN challenges > 0 THEN 1 ELSE 0 END), 0) AS challenged_sweeps,
                 COALESCE(SUM(challenges), 0) AS challenges,
                 COALESCE(SUM(requests), 0) AS requests
@@ -193,6 +203,6 @@ def _sweep_info(conn: sqlite3.Connection):
             WHERE started_at >= datetime('now', '-14 days')
         """).fetchone()
         sweeps_14d = dict(row) if row else None
-        return last_sweep, sweeps_14d
+        return last_sweep, last_full_sweep, sweeps_14d
     except sqlite3.OperationalError:
-        return None, None
+        return None, None, None

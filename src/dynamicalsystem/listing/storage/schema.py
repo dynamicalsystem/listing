@@ -15,13 +15,14 @@ from pathlib import Path
 from typing import Optional
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 # Version 2: one row per maintenance sweep, so Cloudflare challenge rate and
 # sweep outcomes are measured from data rather than inferred from exit codes
-# in the journal. Shared by the fresh-install schema and the v1->v2 migration.
-SWEEP_RUNS_SQL = """
+# in the journal. This is the v2 shape, used by the v1->v2 migration only;
+# a fresh install gets the current shape (SWEEP_RUNS_SQL_CURRENT, below).
+SWEEP_RUNS_SQL_V2 = """
 CREATE TABLE IF NOT EXISTS sweep_runs (
     run_id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,               -- UTC ISO 8601
@@ -40,6 +41,19 @@ CREATE TABLE IF NOT EXISTS sweep_runs (
 
 CREATE INDEX IF NOT EXISTS idx_sweep_runs_started_at ON sweep_runs(started_at);
 """
+
+# Version 3: outcome distinguishes a full sweep from an hourly run that
+# stopped at the first Cloudflare challenge ('full' | 'challenged'). NULL in
+# rows written before v3 means 'full'.
+SWEEP_RUNS_OUTCOME_SQL = """
+ALTER TABLE sweep_runs ADD COLUMN outcome TEXT;
+"""
+
+SWEEP_RUNS_SQL_CURRENT = SWEEP_RUNS_SQL_V2.replace(
+    "    exit_code INTEGER\n);",
+    "    exit_code INTEGER,\n    outcome TEXT                            -- 'full' | 'challenged'\n);",
+)
+assert "outcome TEXT" in SWEEP_RUNS_SQL_CURRENT
 
 
 SCHEMA_SQL = """
@@ -212,12 +226,13 @@ SELECT
     MAX(showing_count) as final_showing_count
 FROM schedule_snapshots
 GROUP BY date;
-""" + SWEEP_RUNS_SQL
+""" + SWEEP_RUNS_SQL_CURRENT
 
 
 # Migrations keyed by the version they bring the database to.
 MIGRATIONS = {
-    2: SWEEP_RUNS_SQL,
+    2: SWEEP_RUNS_SQL_V2,
+    3: SWEEP_RUNS_OUTCOME_SQL,
 }
 
 

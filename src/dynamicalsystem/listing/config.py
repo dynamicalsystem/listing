@@ -22,6 +22,15 @@ class Config:
     # Alert thresholds
     MAX_ERROR_RATE = float(os.getenv('LISTING_MAX_ERROR_RATE', '0.5'))  # 50%
 
+    # Sweep window (retry across Cloudflare challenges). With --when-due the
+    # sweep runs hourly; a full sweep is due once per window, the window
+    # starting daily at SWEEP_WINDOW_START in SWEEP_TIMEZONE. BFI publishes
+    # in the afternoon (emails ~17:30 UK), so the window opens at 18:00 and
+    # the first hourly firing after that does the sweep.
+    SWEEP_WINDOW_START = os.getenv('LISTING_SWEEP_WINDOW_START', '18:00')
+    SWEEP_TIMEZONE = os.getenv('LISTING_SWEEP_TIMEZONE', 'Europe/London')
+    MAX_FULL_SWEEPS_PER_WINDOW = int(os.getenv('LISTING_MAX_FULL_SWEEPS_PER_WINDOW', '3'))
+
     # Health check URL (optional)
     HEALTHCHECK_URL = os.getenv('HEALTHCHECK_URL', None)
 
@@ -44,6 +53,16 @@ class Config:
             return False
 
         if cls.MAX_ERROR_RATE < 0 or cls.MAX_ERROR_RATE > 1:
+            return False
+
+        try:
+            hh, mm = cls.SWEEP_WINDOW_START.split(':')
+            if not (0 <= int(hh) <= 23 and 0 <= int(mm) <= 59):
+                return False
+        except (ValueError, AttributeError):
+            return False
+
+        if cls.MAX_FULL_SWEEPS_PER_WINDOW < 1:
             return False
 
         return True

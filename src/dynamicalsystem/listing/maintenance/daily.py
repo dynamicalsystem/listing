@@ -15,12 +15,12 @@ import logging
 import logging.handlers
 import argparse
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from dynamicalsystem.listing.scraper.fetch import BFIFetcher
+from dynamicalsystem.listing.scraper.fetch import BFIFetcher, CloudflareChallenge
 from dynamicalsystem.listing.scraper.runtime import RuntimeFetcher
 from dynamicalsystem.listing.scraper.schedule import ScheduleManager
 from dynamicalsystem.listing.scraper.changes import ChangeDetector
@@ -43,6 +43,7 @@ class ScrapeRunSummary:
     requests: int = 0
     challenges: int = 0            # Cloudflare challenges seen by the fetcher
     last_cf_ray: Optional[str] = None
+    outcome: str = 'full'          # 'full' | 'challenged' (aborted at first challenge)
 
     def __post_init__(self):
         if self.errors is None:
@@ -106,6 +107,7 @@ def log_summary(summary: ScrapeRunSummary):
     logger.info("")
     logger.info("Scrape Run Summary")
     logger.info("-" * 60)
+    logger.info(f"Outcome:          {summary.outcome}")
     logger.info(f"Started:          {summary.started_at}")
     logger.info(f"Completed:        {summary.completed_at}")
     logger.info(f"Duration:         {summary.duration_seconds:.1f}s")
@@ -147,11 +149,16 @@ def ping_healthcheck(success: bool):
         logging.warning(f"Failed to ping healthcheck: {e}")
 
 
-def run_daily_maintenance(dry_run: bool = False) -> ScrapeRunSummary:
+def run_daily_maintenance(dry_run: bool = False,
+                          abort_on_challenge: bool = False) -> ScrapeRunSummary:
     """Execute daily scrape run.
 
     Args:
         dry_run: If True, simulate run without making changes
+        abort_on_challenge: If True, a Cloudflare challenge on the horizon
+            scan ends the run immediately with outcome 'challenged' instead
+            of attempting every date (which would be challenged too). Used by
+            the hourly --when-due mode, which retries on the next firing.
 
     Returns:
         Summary of the scrape run
@@ -191,6 +198,16 @@ def run_daily_maintenance(dry_run: bool = False) -> ScrapeRunSummary:
         if horizon_result.new_dates:
             logger.info(f"New dates: {sorted(list(horizon_result.new_dates))[:5]}...")
 
+    except CloudflareChallenge as e:
+        summary.errors.append(f"horizon_scan: {e}")
+        if abort_on_challenge:
+            logger.warning(f"Horizon scan challenged by Cloudflare (cf-ray={e.cf_ray}); "
+                           f"aborting this run, the next timer firing retries")
+            summary.outcome = 'challenged'
+            _finalize_summary(summary, start_time, fetcher)
+            return summary
+        logger.error(f"Horizon scan failed: {e}", exc_info=True)
+        # Continue with scraping known dates
     except Exception as e:
         logger.error(f"Horizon scan failed: {e}", exc_info=True)
         summary.errors.append(f"horizon_scan: {e}")
@@ -244,12 +261,57 @@ def run_daily_maintenance(dry_run: bool = False) -> ScrapeRunSummary:
         summary.errors.append(f"cleanup: {e}")
 
     # 5. Finalize summary
+    _finalize_summary(summary, start_time, fetcher)
+    return summary
+
+
+def _finalize_summary(summary: ScrapeRunSummary, start_time: datetime, fetcher) -> None:
     end_time = datetime.now(ZoneInfo("UTC"))
     summary.completed_at = end_time.isoformat()
     summary.duration_seconds = (end_time - start_time).total_seconds()
     _copy_fetch_stats(summary, fetcher)
 
-    return summary
+
+def window_start(now: datetime,
+                 start_hhmm: Optional[str] = None,
+                 tz_name: Optional[str] = None) -> datetime:
+    """Start of the current sweep window, as an aware UTC datetime.
+
+    The window opens daily at start_hhmm local time (Config.SWEEP_WINDOW_START
+    in Config.SWEEP_TIMEZONE). If local time is before today's opening, the
+    current window is yesterday's.
+    """
+    start_hhmm = start_hhmm or Config.SWEEP_WINDOW_START
+    tz = ZoneInfo(tz_name or Config.SWEEP_TIMEZONE)
+    hh, mm = (int(x) for x in start_hhmm.split(':'))
+    local_now = now.astimezone(tz)
+    opening = local_now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+    if local_now < opening:
+        opening = (local_now - timedelta(days=1)).replace(hour=hh, minute=mm, second=0, microsecond=0)
+    return opening.astimezone(ZoneInfo("UTC"))
+
+
+def is_full_sweep_due(db: Database, now: datetime) -> Tuple[bool, str]:
+    """Decide whether this hourly firing should run a full sweep.
+
+    Due when no full sweep has completed non-critically (exit 0 or 1) since
+    the window opened, and fewer than Config.MAX_FULL_SWEEPS_PER_WINDOW full
+    sweeps have been attempted in the window. Challenged runs never count as
+    attempts: they made one request and stopped.
+    """
+    ws = window_start(now)
+    ws_iso = ws.isoformat()
+    full_runs = db.get_sweep_runs_since(ws_iso, outcome='full')
+    completed = [r for r in full_runs if r.get('exit_code') in (0, 1)]
+    if completed:
+        return False, (f"full sweep completed at {completed[-1]['started_at']} "
+                       f"(exit {completed[-1]['exit_code']}) in window from {ws_iso}")
+    if len(full_runs) >= Config.MAX_FULL_SWEEPS_PER_WINDOW:
+        return False, (f"{len(full_runs)} full sweeps attempted since {ws_iso}, "
+                       f"all critical; cap {Config.MAX_FULL_SWEEPS_PER_WINDOW} reached")
+    challenged = db.get_sweep_runs_since(ws_iso, outcome='challenged')
+    return True, (f"no completed full sweep since {ws_iso} "
+                  f"({len(full_runs)} critical attempts, {len(challenged)} challenged runs)")
 
 
 def _copy_fetch_stats(summary: ScrapeRunSummary, fetcher) -> None:
@@ -304,6 +366,7 @@ def record_sweep(summary: ScrapeRunSummary, exit_code: int) -> None:
             'challenges': summary.challenges,
             'last_cf_ray': summary.last_cf_ray,
             'exit_code': exit_code,
+            'outcome': summary.outcome,
         })
     except Exception as e:
         logger.error(f"Could not record sweep run: {e}")
@@ -327,6 +390,10 @@ def main(argv=None):
                        help='Path to SQLite database')
     parser.add_argument('--log-file', default=Config.LOG_FILE,
                        help='Path to log file (omit for console only)')
+    parser.add_argument('--when-due', action='store_true',
+                       help='Hourly mode: run a full sweep only if none has completed '
+                            'since the window opened; stop at the first Cloudflare '
+                            'challenge and let the next firing retry')
     args = parser.parse_args(argv)
 
     # Update config from args
@@ -351,19 +418,34 @@ def main(argv=None):
             logger.error("Configuration validation failed")
             return 2
 
+        # Hourly mode: only sweep when due
+        if args.when_due and not args.dry_run:
+            due, reason = is_full_sweep_due(Database(Config.DB_PATH), datetime.now(ZoneInfo("UTC")))
+            logger.info(f"Due check: {reason}")
+            if not due:
+                logger.info("Not due: exiting without making any request")
+                return 0
+
         # Run maintenance
-        summary = run_daily_maintenance(dry_run=args.dry_run)
+        summary = run_daily_maintenance(dry_run=args.dry_run,
+                                        abort_on_challenge=args.when_due)
 
         # Log summary
         log_summary(summary)
 
-        # Determine exit code
-        exit_code = determine_exit_code(summary)
+        # Determine exit code. A challenged hourly run is an expected,
+        # handled condition (the next firing retries), not a unit failure.
+        if summary.outcome == 'challenged':
+            exit_code = 0
+            logger.warning("Run stopped at Cloudflare challenge; retrying on the next timer firing")
+        else:
+            exit_code = determine_exit_code(summary)
 
-        # Record the sweep and ping healthcheck
+        # Record the run and ping healthcheck (full sweeps only)
         if not args.dry_run:
             record_sweep(summary, exit_code)
-            ping_healthcheck(exit_code == 0)
+            if summary.outcome == 'full':
+                ping_healthcheck(exit_code == 0)
 
     except KeyboardInterrupt:
         logger.warning("Interrupted by user")

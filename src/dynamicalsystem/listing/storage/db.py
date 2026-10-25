@@ -222,28 +222,59 @@ class Database:
                     started_at, completed_at, duration_seconds,
                     dates_attempted, dates_scraped, new_dates_found,
                     changes_detected, error_count, requests, challenges,
-                    last_cf_ray, exit_code
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    last_cf_ray, exit_code, outcome
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 run['started_at'], run.get('completed_at'), run.get('duration_seconds'),
                 int(run.get('dates_attempted') or 0), int(run.get('dates_scraped') or 0),
                 int(run.get('new_dates_found') or 0), int(run.get('changes_detected') or 0),
                 int(run.get('error_count') or 0), int(run.get('requests') or 0),
                 int(run.get('challenges') or 0), run.get('last_cf_ray'), run.get('exit_code'),
+                run.get('outcome') or 'full',
             ))
             conn.commit()
             return cursor.lastrowid
         finally:
             conn.close()
 
-    def get_last_sweep_run(self) -> Optional[Dict]:
-        """Most recent sweep by started_at, or None."""
+    def get_last_sweep_run(self, outcome: Optional[str] = None) -> Optional[Dict]:
+        """Most recent sweep by started_at, or None.
+
+        Args:
+            outcome: restrict to 'full' or 'challenged' runs; None for any.
+                     Rows from before schema v3 have NULL outcome = 'full'.
+        """
         conn = self._get_connection()
         try:
-            row = conn.execute("""
-                SELECT * FROM sweep_runs ORDER BY started_at DESC LIMIT 1
-            """).fetchone()
+            if outcome is None:
+                row = conn.execute("""
+                    SELECT * FROM sweep_runs ORDER BY started_at DESC LIMIT 1
+                """).fetchone()
+            else:
+                row = conn.execute("""
+                    SELECT * FROM sweep_runs
+                    WHERE COALESCE(outcome, 'full') = ?
+                    ORDER BY started_at DESC LIMIT 1
+                """, (outcome,)).fetchone()
             return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def get_sweep_runs_since(self, since_iso: str, outcome: Optional[str] = None) -> List[Dict]:
+        """Sweep runs with started_at >= since_iso (UTC ISO 8601), oldest first."""
+        conn = self._get_connection()
+        try:
+            if outcome is None:
+                rows = conn.execute("""
+                    SELECT * FROM sweep_runs WHERE started_at >= ? ORDER BY started_at
+                """, (since_iso,)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT * FROM sweep_runs
+                    WHERE started_at >= ? AND COALESCE(outcome, 'full') = ?
+                    ORDER BY started_at
+                """, (since_iso, outcome)).fetchall()
+            return [dict(r) for r in rows]
         finally:
             conn.close()
 
@@ -251,15 +282,17 @@ class Database:
         """Aggregate sweep outcomes over the last N days.
 
         Returns:
-            dict with days, sweeps, failed_sweeps (exit_code != 0),
-            challenged_sweeps (challenges > 0), challenges, requests
+            dict with days, sweeps (all recorded runs), full_sweeps
+            (outcome 'full'), failed_sweeps (full with exit_code != 0),
+            challenged_sweeps (runs with challenges > 0), challenges, requests
         """
         conn = self._get_connection()
         try:
             row = conn.execute("""
                 SELECT
                     COUNT(*) AS sweeps,
-                    COALESCE(SUM(CASE WHEN exit_code IS NOT NULL AND exit_code != 0 THEN 1 ELSE 0 END), 0) AS failed_sweeps,
+                    COALESCE(SUM(CASE WHEN COALESCE(outcome, 'full') = 'full' THEN 1 ELSE 0 END), 0) AS full_sweeps,
+                    COALESCE(SUM(CASE WHEN COALESCE(outcome, 'full') = 'full' AND exit_code IS NOT NULL AND exit_code != 0 THEN 1 ELSE 0 END), 0) AS failed_sweeps,
                     COALESCE(SUM(CASE WHEN challenges > 0 THEN 1 ELSE 0 END), 0) AS challenged_sweeps,
                     COALESCE(SUM(challenges), 0) AS challenges,
                     COALESCE(SUM(requests), 0) AS requests

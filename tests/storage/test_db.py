@@ -534,3 +534,32 @@ class TestSweepRuns:
         last = db.get_last_sweep_run()
         assert last['requests'] == 0 and last['challenges'] == 0
         assert last['exit_code'] is None
+
+
+    def test_outcome_defaults_to_full_and_filters(self, db):
+        db.record_sweep_run(self._run('2026-10-25T17:30:00+00:00'))
+        db.record_sweep_run(self._run('2026-10-25T18:30:00+00:00', outcome='challenged',
+                                      requests=1, challenges=1, dates_attempted=0, dates_scraped=0))
+
+        assert db.get_last_sweep_run()['outcome'] == 'challenged'
+        assert db.get_last_sweep_run(outcome='full')['started_at'] == '2026-10-25T17:30:00+00:00'
+        since = db.get_sweep_runs_since('2026-10-25T18:00:00+00:00')
+        assert [r['outcome'] for r in since] == ['challenged']
+        assert db.get_sweep_runs_since('2026-10-25T00:00:00+00:00', outcome='full')[0]['requests'] == 38
+
+    def test_stats_separate_full_from_challenged_runs(self, db):
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        t = lambda h: (now - timedelta(hours=h)).isoformat(timespec='seconds')
+        db.record_sweep_run(self._run(t(5), outcome='challenged', requests=1, challenges=1, exit_code=0))
+        db.record_sweep_run(self._run(t(4), outcome='challenged', requests=1, challenges=1, exit_code=0))
+        db.record_sweep_run(self._run(t(3), exit_code=0))
+
+        stats = db.get_sweep_stats(days=1)
+
+        assert stats['sweeps'] == 3
+        assert stats['full_sweeps'] == 1
+        assert stats['failed_sweeps'] == 0
+        assert stats['challenged_sweeps'] == 2
+        assert stats['challenges'] == 2
+        assert stats['requests'] == 40

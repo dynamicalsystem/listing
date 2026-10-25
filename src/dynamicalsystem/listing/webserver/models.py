@@ -113,4 +113,5 @@ class HealthInfo(BaseModel):
     newest_listing: Optional[str] = None
     # Sweep accounting (schema v2); None until the first recorded sweep
     last_sweep: Optional[Dict[str, Any]] = None
+    last_full_sweep: Optional[Dict[str, Any]] = None
     sweeps_14d: Optional[Dict[str, Any]] = None
