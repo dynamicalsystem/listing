@@ -5,7 +5,7 @@ owner: dynamicalsystem
 status: Act
 parent: null
 blocked-by: []
-worktrees: [listing/scraper-egress (egress/retry-when-due), tinsnip/sweep-timing (listing-hourly-when-due)]
+worktrees: [tinsnip/sweep-timing (listing-hourly-when-due)]
 prs: [https://github.com/dynamicalsystem/listing/pull/1, https://github.com/dynamicalsystem/listing/pull/2, https://github.com/dynamicalsystem/tinsnip/pull/18]
 triggers: []
 ---
@@ -184,6 +184,13 @@ Signal push; rides 2026-10-sweep-timing's 14-day trigger.
     on the old image the flag is an argparse error on every firing.
   - Healthy-day cost unchanged (one full sweep at 18:30 UK); challenged day
     costs 24 single requests. Week-long blocks not addressed.
+  - 2026-10-25 ~09:20 UTC: listing PR 2 merged as 7e350ad; release build
+    succeeded 09:23 UTC; gateway auto-update deployed it by 09:30 UTC
+    (/health now serves last_full_sweep, which only exists in this code).
+    ssh to the gateway over WireGuard timed out from the Mac at 09:30, so
+    the deployed revision label and the --help check were not read
+    directly; the health field is the evidence. tinsnip PR 18 is now safe
+    to merge; on-box restart is Simon's step.
 - Experiment 2 replacement (GitHub Actions ASN probe) and 4 (ask BFI) not
   started.
 
